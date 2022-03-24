@@ -10,6 +10,17 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
+func NewExcel(sheetName string) *excelize.File {
+	f := excelize.NewFile()
+	f.SetDefaultFont("Arial")
+	if sheetName != "" {
+		sheet := f.NewSheet(sheetName)
+		f.DeleteSheet("Sheet1")
+		f.SetActiveSheet(sheet)
+	}
+	return f
+}
+
 func getCellNum(row, column int) string {
 	var result string
 	start := 'A'
