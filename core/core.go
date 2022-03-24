@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ffhuo/go-conf/pkg/prometheus"
+	"github.com/ffhuo/go-kits/prometheus"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"

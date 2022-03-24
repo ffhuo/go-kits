@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/ffhuo/go-conf/pkg/paginator"
+	"github.com/ffhuo/go-kits/paginator"
 	"github.com/pkg/errors"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/sqlite"
