@@ -1,14 +1,16 @@
 package redis
 
 import (
+	"context"
 	"encoding/json"
 	"time"
 
-	"github.com/go-redis/redis/v7"
+	"github.com/go-redis/redis/v8"
 	"github.com/pkg/errors"
 )
 
 type RedisCli struct {
+	ctx           context.Context
 	isCluster     bool
 	clusterClient *redis.ClusterClient
 	signalClient  *redis.Client
@@ -19,9 +21,9 @@ func New(addrs []string, password string) (*RedisCli, error) {
 	c := &RedisCli{}
 
 	if len(addrs) == 1 {
-		c.signalClient, err = redisConnect(addrs, password)
+		c.signalClient, err = c.redisConnect(addrs, password)
 	} else {
-		c.clusterClient, err = redisClusterConnect(addrs, password)
+		c.clusterClient, err = c.redisClusterConnect(addrs, password)
 		c.isCluster = true
 	}
 	if err != nil {
@@ -31,7 +33,7 @@ func New(addrs []string, password string) (*RedisCli, error) {
 	return c, nil
 }
 
-func redisConnect(addrs []string, password string) (*redis.Client, error) {
+func (c *RedisCli) redisConnect(addrs []string, password string) (*redis.Client, error) {
 	client := redis.NewClient(&redis.Options{
 		Addr:         addrs[0],
 		Password:     password,
@@ -40,14 +42,14 @@ func redisConnect(addrs []string, password string) (*redis.Client, error) {
 		MinIdleConns: 10,
 	})
 
-	if err := client.Ping().Err(); err != nil {
+	if err := client.Ping(c.ctx).Err(); err != nil {
 		return nil, errors.Wrap(err, "ping redis err")
 	}
 
 	return client, nil
 }
 
-func redisClusterConnect(addrs []string, password string) (*redis.ClusterClient, error) {
+func (c *RedisCli) redisClusterConnect(addrs []string, password string) (*redis.ClusterClient, error) {
 	client := redis.NewClusterClient(&redis.ClusterOptions{
 		Addrs:        addrs,
 		Password:     password,
@@ -56,7 +58,7 @@ func redisClusterConnect(addrs []string, password string) (*redis.ClusterClient,
 		MinIdleConns: 10,
 	})
 
-	if err := client.Ping().Err(); err != nil {
+	if err := client.Ping(c.ctx).Err(); err != nil {
 		return nil, errors.Wrap(err, "ping redis err")
 	}
 
@@ -72,7 +74,7 @@ func (c *RedisCli) RedisClient() redis.Cmdable {
 
 // Set set some <key,value> into redis
 func (c *RedisCli) Set(key, value string, ttl time.Duration) error {
-	if err := c.RedisClient().Set(key, value, ttl).Err(); err != nil {
+	if err := c.RedisClient().Set(c.ctx, key, value, ttl).Err(); err != nil {
 		return errors.Wrapf(err, "redis set key: %s err", key)
 	}
 
@@ -89,7 +91,7 @@ func (c *RedisCli) SetWithData(key string, value interface{}, ttl time.Duration)
 
 // Get get some key from redis
 func (c *RedisCli) Get(key string) (string, error) {
-	value, err := c.RedisClient().Get(key).Result()
+	value, err := c.RedisClient().Get(c.ctx, key).Result()
 	if err != nil {
 		return "", errors.Wrapf(err, "redis get key: %s err", key)
 	}
@@ -99,13 +101,13 @@ func (c *RedisCli) Get(key string) (string, error) {
 
 // SetNX
 func (c *RedisCli) SetNX(key, value string, ttl time.Duration) bool {
-	ok, _ := c.RedisClient().SetNX(key, value, ttl).Result()
+	ok, _ := c.RedisClient().SetNX(c.ctx, key, value, ttl).Result()
 	return ok
 }
 
 // TTL get some key from redis
 func (c *RedisCli) TTL(key string) (time.Duration, error) {
-	ttl, err := c.RedisClient().TTL(key).Result()
+	ttl, err := c.RedisClient().TTL(c.ctx, key).Result()
 	if err != nil {
 		return -1, errors.Wrapf(err, "redis get key: %s err", key)
 	}
@@ -115,13 +117,13 @@ func (c *RedisCli) TTL(key string) (time.Duration, error) {
 
 // Expire expire some key
 func (c *RedisCli) Expire(key string, ttl time.Duration) bool {
-	ok, _ := c.RedisClient().Expire(key, ttl).Result()
+	ok, _ := c.RedisClient().Expire(c.ctx, key, ttl).Result()
 	return ok
 }
 
 // ExpireAt expire some key at some time
 func (c *RedisCli) ExpireAt(key string, ttl time.Time) bool {
-	ok, _ := c.RedisClient().ExpireAt(key, ttl).Result()
+	ok, _ := c.RedisClient().ExpireAt(c.ctx, key, ttl).Result()
 	return ok
 }
 
@@ -130,7 +132,7 @@ func (c *RedisCli) Exists(keys ...string) bool {
 	if len(keys) == 0 {
 		return true
 	}
-	value, _ := c.RedisClient().Exists(keys...).Result()
+	value, _ := c.RedisClient().Exists(c.ctx, keys...).Result()
 	return value > 0
 }
 
@@ -139,29 +141,29 @@ func (c *RedisCli) Del(key string) bool {
 		return true
 	}
 
-	value, _ := c.RedisClient().Del(key).Result()
+	value, _ := c.RedisClient().Del(c.ctx, key).Result()
 	return value > 0
 }
 
 func (c *RedisCli) Incr(key string) int64 {
-	value, _ := c.RedisClient().Incr(key).Result()
+	value, _ := c.RedisClient().Incr(c.ctx, key).Result()
 	return value
 }
 
 func (c *RedisCli) Subscribe(channel string) *redis.PubSub {
 	if c.isCluster {
-		return c.clusterClient.Subscribe(channel)
+		return c.clusterClient.Subscribe(c.ctx, channel)
 	}
-	return c.signalClient.Subscribe(channel)
+	return c.signalClient.Subscribe(c.ctx, channel)
 }
 
 func (c *RedisCli) Publish(channel string, data string) error {
 	var err error
 	if c.isCluster {
-		_, err = c.clusterClient.Publish(channel, data).Result()
+		_, err = c.clusterClient.Publish(c.ctx, channel, data).Result()
 		return err
 	}
-	_, err = c.signalClient.Publish(channel, data).Result()
+	_, err = c.signalClient.Publish(c.ctx, channel, data).Result()
 	return err
 }
 
@@ -175,53 +177,53 @@ func (c *RedisCli) PublishWithData(channel string, data interface{}) error {
 
 // Sadd set 添加元素
 func (c *RedisCli) Sadd(key string, members ...interface{}) error {
-	_, err := c.RedisClient().SAdd(key, members...).Result()
+	_, err := c.RedisClient().SAdd(c.ctx, key, members...).Result()
 	return err
 }
 
 func (c *RedisCli) Srem(key string, members ...interface{}) int64 {
-	value, _ := c.RedisClient().SRem(key, members...).Result()
+	value, _ := c.RedisClient().SRem(c.ctx, key, members...).Result()
 	return value
 }
 
 // SIsMember set 判断元素是否存在
 func (c *RedisCli) SIsMember(key string, member interface{}) bool {
-	value, _ := c.RedisClient().SIsMember(key, member).Result()
+	value, _ := c.RedisClient().SIsMember(c.ctx, key, member).Result()
 	return value
 }
 
 // Scard set 获取元素数量
 func (c *RedisCli) Scard(key string) int64 {
-	value, _ := c.RedisClient().SCard(key).Result()
+	value, _ := c.RedisClient().SCard(c.ctx, key).Result()
 	return value
 }
 
 // Hset hash 设置key中values[0]值values[1],values[2]值values[3]
 // redis 版本v4
 func (c *RedisCli) Hset(key string, values ...interface{}) error {
-	_, err := c.RedisClient().HSet(key, values...).Result()
+	_, err := c.RedisClient().HSet(c.ctx, key, values...).Result()
 	return err
 }
 
 // HMSet hash 设置key中values[0]值values[1],values[2]值values[3]
 // redis 版本v3
 func (c *RedisCli) Hmset(key string, values ...interface{}) error {
-	_, err := c.RedisClient().HMSet(key, values...).Result()
+	_, err := c.RedisClient().HMSet(c.ctx, key, values...).Result()
 	return err
 }
 
 // Hget hash get key filed value
 func (c *RedisCli) Hget(key, field string) (string, error) {
-	return c.RedisClient().HGet(key, field).Result()
+	return c.RedisClient().HGet(c.ctx, key, field).Result()
 }
 
 // HgetAll hash get key all field and value
 func (c *RedisCli) HgetAll(key string) (map[string]string, error) {
-	return c.RedisClient().HGetAll(key).Result()
+	return c.RedisClient().HGetAll(c.ctx, key).Result()
 }
 
 func (c *RedisCli) Hdel(key string, field ...string) int64 {
-	value, _ := c.RedisClient().HDel(key, field...).Result()
+	value, _ := c.RedisClient().HDel(c.ctx, key, field...).Result()
 	return value
 }
 
