@@ -16,9 +16,11 @@ type RedisCli struct {
 	signalClient  *redis.Client
 }
 
-func New(addrs []string, password string) (*RedisCli, error) {
+func New(ctx context.Context, addrs []string, password string) (*RedisCli, error) {
 	var err error
-	c := &RedisCli{}
+	c := &RedisCli{
+		ctx: ctx,
+	}
 
 	if len(addrs) == 1 {
 		c.signalClient, err = c.redisConnect(addrs, password)
