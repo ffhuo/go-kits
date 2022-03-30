@@ -15,6 +15,8 @@ type Option func(*option)
 type option struct {
 	endpoints []string
 	timeout   time.Duration
+	username  string
+	password  string
 }
 
 func WithTimeount(timeout time.Duration) Option {
@@ -26,6 +28,13 @@ func WithTimeount(timeout time.Duration) Option {
 func WithEndpoint(endpoints []string) Option {
 	return func(opt *option) {
 		opt.endpoints = endpoints
+	}
+}
+
+func WithUser(username, password string) Option {
+	return func(opt *option) {
+		opt.username = username
+		opt.password = password
 	}
 }
 
@@ -42,6 +51,10 @@ func New(opts ...Option) (*Client, error) {
 	config := clientv3.Config{
 		Endpoints:   opt.endpoints,
 		DialTimeout: opt.timeout,
+	}
+	if opt.username != "" && opt.password != "" {
+		config.Username = opt.username
+		config.Password = opt.password
 	}
 	cli, err := clientv3.New(config)
 	if err != nil {
