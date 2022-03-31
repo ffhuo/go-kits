@@ -1,6 +1,7 @@
 package mail
 
 import (
+	"crypto/tls"
 	"strings"
 
 	"gopkg.in/gomail.v2"
@@ -34,6 +35,19 @@ func Send(o *Options) error {
 	m.SetBody("text/html", o.Body)
 
 	d := gomail.NewDialer(o.MailHost, o.MailPort, o.MailUser, o.MailPass)
+	d.SSL = true
+	d.TLSConfig = &tls.Config{
+		ServerName:               o.MailHost,
+		MinVersion:               tls.VersionTLS12,
+		CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
+		PreferServerCipherSuites: true,
+		CipherSuites: []uint16{
+			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+			tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+		},
+	}
 
 	return d.DialAndSend(m)
 }

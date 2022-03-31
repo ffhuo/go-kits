@@ -1,6 +1,7 @@
 package redis
 
 import (
+	"context"
 	"testing"
 	"time"
 )
@@ -25,7 +26,7 @@ func Test_set(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cli, err := New([]string{""}, "")
+			cli, err := New(context.Background(), []string{""}, "")
 			if err != nil {
 				t.Error(err)
 				return
