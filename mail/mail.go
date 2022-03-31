@@ -35,7 +35,6 @@ func Send(o *Options) error {
 	m.SetBody("text/html", o.Body)
 
 	d := gomail.NewDialer(o.MailHost, o.MailPort, o.MailUser, o.MailPass)
-	d.SSL = true
 	d.TLSConfig = &tls.Config{
 		ServerName:               o.MailHost,
 		MinVersion:               tls.VersionTLS12,
