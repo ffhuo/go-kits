@@ -1,6 +1,9 @@
 package logger
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -9,6 +12,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
+	"gorm.io/gorm/utils"
 )
 
 const (
@@ -122,6 +126,67 @@ func WithDisableConsole() Option {
 	}
 }
 
+type Logger struct {
+	log *zap.Logger
+}
+
+func New(opts ...Option) (*Logger, error) {
+	log, err := NewLogger(opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &Logger{log: log}, nil
+}
+
+func (l *Logger) Debug(ctx context.Context, msg string, data ...interface{}) {
+	log := l.log.Sugar().With(Fields(ctx))
+	log.Debugf(msg, data...)
+}
+
+func (l *Logger) Info(ctx context.Context, msg string, data ...interface{}) {
+	log := l.log.Sugar().With(Fields(ctx))
+	log.Infof(msg, data...)
+}
+
+func (l *Logger) Error(ctx context.Context, msg string, data ...interface{}) {
+	log := l.log.Sugar().With(Fields(ctx))
+	log.Errorf(msg, data...)
+}
+
+func (l *Logger) Warn(ctx context.Context, msg string, data ...interface{}) {
+	log := l.log.Sugar().With(Fields(ctx))
+	log.Warnf(msg, data...)
+}
+
+func (l *Logger) Trace(ctx context.Context, msg string, data ...interface{}) {
+	log := l.log.Sugar().With(Fields(ctx))
+	elapsed := time.Since(begin)
+	switch {
+	case err != nil && DefaultLevel >= gorm.Error && (!errors.Is(err, gorm.ErrRecordNotFound) || !logger.conf.SkipErrRecordNotFound):
+		sql, rows := fc()
+		if rows == -1 {
+			log.Errorf("%s %s\n[%.3fms] [rows:%v] %s", utils.FileWithLineNum(), err, float64(elapsed.Nanoseconds())/1e6, "-", sql)
+		} else {
+			log.Errorf("%s %s\n[%.3fms] [rows:%v] %s", utils.FileWithLineNum(), err, float64(elapsed.Nanoseconds())/1e6, rows, sql)
+		}
+	case elapsed > logger.conf.SlowThreshold && logger.conf.SlowThreshold != 0 && DefaultLevel >= gorm.Warn:
+		sql, rows := fc()
+		slowLog := fmt.Sprintf("SLOW SQL >= %v", logger.conf.SlowThreshold)
+		if rows == -1 {
+			log.Warnf("%s %s\n[%.3fms] [rows:%v] %s", utils.FileWithLineNum(), slowLog, float64(elapsed.Nanoseconds())/1e6, "-", sql)
+		} else {
+			log.Warnf("%s %s\n[%.3fms] [rows:%v] %s", utils.FileWithLineNum(), slowLog, float64(elapsed.Nanoseconds())/1e6, rows, sql)
+		}
+	case DefaultLevel == gorm.Info:
+		sql, rows := fc()
+		if rows == -1 {
+			log.Infof("%s\n[%.3fms] [rows:%v] %s", utils.FileWithLineNum(), float64(elapsed.Nanoseconds())/1e6, "-", sql)
+		} else {
+			log.Infof("%s\n[%.3fms] [rows:%v] %s", utils.FileWithLineNum(), float64(elapsed.Nanoseconds())/1e6, rows, sql)
+		}
+	}
+}
+
 // NewJSONLogger return a json-encoder zap logger,
 func NewLogger(opts ...Option) (*zap.Logger, error) {
 	opt := &option{level: DefaultLevel, fields: make(map[string]string)}
@@ -207,53 +272,4 @@ func NewLogger(opts ...Option) (*zap.Logger, error) {
 	}
 
 	return logger, nil
-}
-
-var _ Meta = (*meta)(nil)
-
-// Meta key-value
-type Meta interface {
-	Key() string
-	Value() interface{}
-	meta()
-}
-
-type meta struct {
-	key   string
-	value interface{}
-}
-
-func (m *meta) Key() string {
-	return m.key
-}
-
-func (m *meta) Value() interface{} {
-	return m.value
-}
-
-func (m *meta) meta() {}
-
-// NewMeta create meat
-func NewMeta(key string, value interface{}) Meta {
-	return &meta{key: key, value: value}
-}
-
-// WrapMeta wrap meta to zap fields
-func WrapMeta(err error, metas ...Meta) (fields []zap.Field) {
-	capacity := len(metas) + 1 // namespace meta
-	if err != nil {
-		capacity++
-	}
-
-	fields = make([]zap.Field, 0, capacity)
-	if err != nil {
-		fields = append(fields, zap.Error(err))
-	}
-
-	fields = append(fields, zap.Namespace("meta"))
-	for _, meta := range metas {
-		fields = append(fields, zap.Any(meta.Key(), meta.Value()))
-	}
-
-	return
 }
