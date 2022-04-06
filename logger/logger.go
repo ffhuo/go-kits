@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
+	gorm "gorm.io/gorm/logger"
 	"gorm.io/gorm/utils"
 )
 
@@ -21,6 +22,8 @@ const (
 
 	// DefaultTimeLayout the default time layout;
 	DefaultTimeLayout = time.RFC3339
+
+	SlowThreshold = time.Millisecond * 200
 )
 
 // Option custom setup config
@@ -139,45 +142,65 @@ func New(opts ...Option) (*Logger, error) {
 }
 
 func (l *Logger) Debug(ctx context.Context, msg string, data ...interface{}) {
-	log := l.log.Sugar().With(Fields(ctx))
+	log := l.log.Sugar()
+	fileds := Fields(ctx)
+	if len(fileds) != 0 {
+		log = log.With(fileds)
+	}
 	log.Debugf(msg, data...)
 }
 
 func (l *Logger) Info(ctx context.Context, msg string, data ...interface{}) {
-	log := l.log.Sugar().With(Fields(ctx))
+	log := l.log.Sugar()
+	fileds := Fields(ctx)
+	if len(fileds) != 0 {
+		log = log.With(fileds)
+	}
 	log.Infof(msg, data...)
 }
 
 func (l *Logger) Error(ctx context.Context, msg string, data ...interface{}) {
-	log := l.log.Sugar().With(Fields(ctx))
+	log := l.log.Sugar()
+	fileds := Fields(ctx)
+	if len(fileds) != 0 {
+		log = log.With(fileds)
+	}
 	log.Errorf(msg, data...)
 }
 
 func (l *Logger) Warn(ctx context.Context, msg string, data ...interface{}) {
-	log := l.log.Sugar().With(Fields(ctx))
+	log := l.log.Sugar()
+	fileds := Fields(ctx)
+	if len(fileds) != 0 {
+		log = log.With(fileds)
+	}
 	log.Warnf(msg, data...)
 }
 
-func (l *Logger) Trace(ctx context.Context, msg string, data ...interface{}) {
-	log := l.log.Sugar().With(Fields(ctx))
+func (l *Logger) Trace(ctx context.Context, begin time.Time, fc func() (string, int64), err error) {
+	log := l.log.Sugar()
+	fileds := Fields(ctx)
+	if len(fileds) != 0 {
+		log = log.With(fileds)
+	}
 	elapsed := time.Since(begin)
 	switch {
-	case err != nil && DefaultLevel >= gorm.Error && (!errors.Is(err, gorm.ErrRecordNotFound) || !logger.conf.SkipErrRecordNotFound):
+	case err != nil && gorm.LogLevel(DefaultLevel) >= gorm.Error && !errors.Is(err, gorm.ErrRecordNotFound):
 		sql, rows := fc()
 		if rows == -1 {
 			log.Errorf("%s %s\n[%.3fms] [rows:%v] %s", utils.FileWithLineNum(), err, float64(elapsed.Nanoseconds())/1e6, "-", sql)
 		} else {
 			log.Errorf("%s %s\n[%.3fms] [rows:%v] %s", utils.FileWithLineNum(), err, float64(elapsed.Nanoseconds())/1e6, rows, sql)
 		}
-	case elapsed > logger.conf.SlowThreshold && logger.conf.SlowThreshold != 0 && DefaultLevel >= gorm.Warn:
+	case elapsed > SlowThreshold && SlowThreshold != 0 && gorm.LogLevel(DefaultLevel) >= gorm.Warn:
 		sql, rows := fc()
-		slowLog := fmt.Sprintf("SLOW SQL >= %v", logger.conf.SlowThreshold)
+		slowLog := fmt.Sprintf("SLOW SQL >= %v", SlowThreshold)
 		if rows == -1 {
 			log.Warnf("%s %s\n[%.3fms] [rows:%v] %s", utils.FileWithLineNum(), slowLog, float64(elapsed.Nanoseconds())/1e6, "-", sql)
 		} else {
 			log.Warnf("%s %s\n[%.3fms] [rows:%v] %s", utils.FileWithLineNum(), slowLog, float64(elapsed.Nanoseconds())/1e6, rows, sql)
 		}
-	case DefaultLevel == gorm.Info:
+	case gorm.LogLevel(DefaultLevel) == gorm.Info:
 		sql, rows := fc()
 		if rows == -1 {
 			log.Infof("%s\n[%.3fms] [rows:%v] %s", utils.FileWithLineNum(), float64(elapsed.Nanoseconds())/1e6, "-", sql)
