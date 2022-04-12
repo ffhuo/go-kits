@@ -3,8 +3,6 @@ package dingding
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
-	"io/ioutil"
 	"net/http"
 	"time"
 
@@ -13,6 +11,7 @@ import (
 	dingrobot "github.com/alibabacloud-go/dingtalk/robot_1_0"
 	util "github.com/alibabacloud-go/tea-utils/service"
 	"github.com/alibabacloud-go/tea/tea"
+	"github.com/ffhuo/go-kits/request"
 	"github.com/pkg/errors"
 )
 
@@ -114,7 +113,7 @@ func (c *Client) GetUserByMobile(mobile string) (string, error) {
 		return "", err
 	}
 
-	res, err := c.sendRequest(req)
+	res, err := request.SendRequest(req)
 	if err != nil {
 		return "", err
 	}
@@ -134,25 +133,4 @@ func (c *Client) GetUserByMobile(mobile string) (string, error) {
 		return "", errors.Errorf("failed to get user by mobile: %s", result.ErrMsg)
 	}
 	return result.Result.UserId, nil
-}
-
-func (c *Client) sendRequest(req *http.Request) (res []byte, err error) {
-	// 3秒请求超时
-	client := &http.Client{Timeout: time.Duration(10 * time.Second)}
-	resp, err := client.Do(req)
-	if err != nil {
-		return res, errors.Wrapf(err, "request to %s failed", req.URL)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return res, fmt.Errorf("request to %s failed: %d", req.URL, resp.StatusCode)
-	}
-
-	res, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return res, err
-	}
-
-	return
 }
