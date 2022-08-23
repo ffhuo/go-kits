@@ -1,9 +1,7 @@
 package dingding
 
 import (
-	"bytes"
 	"encoding/json"
-	"net/http"
 	"time"
 
 	openapi "github.com/alibabacloud-go/darabonba-openapi/client"
@@ -11,8 +9,7 @@ import (
 	dingrobot "github.com/alibabacloud-go/dingtalk/robot_1_0"
 	util "github.com/alibabacloud-go/tea-utils/service"
 	"github.com/alibabacloud-go/tea/tea"
-	"github.com/ffhuo/go-kits/request"
-	"github.com/pkg/errors"
+	// "github.com/ffhuo/go-kits/request"
 )
 
 type Client struct {
@@ -97,40 +94,41 @@ func (c *Client) SendRobotMessage(userIds []*string, msg interface{}) error {
 }
 
 func (c *Client) GetUserByMobile(mobile string) (string, error) {
-	var err error
-	if err = c.GetAccessToken(); err != nil {
-		return "", err
-	}
-	url := "https://oapi.dingtalk.com/topapi/v2/user/getbymobile?access_token=" + *c.token
+	// var err error
+	// if err = c.GetAccessToken(); err != nil {
+	// 	return "", err
+	// }
+	// url := "https://oapi.dingtalk.com/topapi/v2/user/getbymobile?access_token=" + *c.token
 
-	args := make(map[string]interface{}, 2)
-	args["mobile"] = mobile
-	args["support_exclusive_account_search"] = "true"
-	b, _ := json.Marshal(args)
+	// args := make(map[string]interface{}, 2)
+	// args["mobile"] = mobile
+	// args["support_exclusive_account_search"] = "true"
+	// b, _ := json.Marshal(args)
 
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(b))
-	if err != nil {
-		return "", err
-	}
+	// req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(b))
+	// if err != nil {
+	// 	return "", err
+	// }
 
-	res, err := request.SendRequest(req)
-	if err != nil {
-		return "", err
-	}
+	// res, err := request.SendRequest(req)
+	// if err != nil {
+	// 	return "", err
+	// }
 
-	var result struct {
-		ErrCode int    `json:"errcode"`
-		ErrMsg  string `json:"errmsg"`
-		Result  struct {
-			UserId string `json:"userid"`
-		}
-	}
+	// var result struct {
+	// 	ErrCode int    `json:"errcode"`
+	// 	ErrMsg  string `json:"errmsg"`
+	// 	Result  struct {
+	// 		UserId string `json:"userid"`
+	// 	}
+	// }
 
-	if err = json.Unmarshal(res, &result); err != nil {
-		return "", errors.Wrap(err, "failed to unmarshal response")
-	}
-	if result.ErrCode != 0 {
-		return "", errors.Errorf("failed to get user by mobile: %s", result.ErrMsg)
-	}
-	return result.Result.UserId, nil
+	// if err = json.Unmarshal(res, &result); err != nil {
+	// 	return "", errors.Wrap(err, "failed to unmarshal response")
+	// }
+	// if result.ErrCode != 0 {
+	// 	return "", errors.Errorf("failed to get user by mobile: %s", result.ErrMsg)
+	// }
+	// return result.Result.UserId, nil
+	return "", nil
 }
