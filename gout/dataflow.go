@@ -24,8 +24,10 @@ type DataFlow struct {
 	c   context.Context
 	Err error
 
-	method string
-	url    string
+	method   string
+	url      string
+	userName *string
+	password *string
 
 	// http body
 	bodyEncoder encode.Encoder
@@ -57,27 +59,50 @@ func New(c ...*http.Client) *DataFlow {
 	return out
 }
 
+func (d *DataFlow) Reset() {
+	if d.cancel != nil {
+		d.cancel()
+	}
+	d.Err = nil
+	d.method = ""
+	d.url = ""
+	d.bodyDecoder = nil
+	d.bodyEncoder = nil
+	d.queryEncoder = nil
+
+	d.headerEncoder = nil
+	d.cookies = nil
+	d.req = nil
+	d.resp = nil
+}
+
 func (d *DataFlow) GET(url string) *DataFlow {
-	d.method = "GET"
+	d.method = http.MethodGet
 	d.url = url
 	return d
 }
 
 func (d *DataFlow) POST(url string) *DataFlow {
-	d.method = "POST"
+	d.method = http.MethodPost
 	d.url = url
 	return d
 }
 
 func (d *DataFlow) PUT(url string) *DataFlow {
-	d.method = "PUT"
+	d.method = http.MethodPut
 	d.url = url
 	return d
 }
 
 func (d *DataFlow) DELETE(url string) *DataFlow {
-	d.method = "DELETE"
+	d.method = http.MethodDelete
 	d.url = url
+	return d
+}
+
+func (d *DataFlow) SetBasicAuth(userName, password string) *DataFlow {
+	d.userName = &userName
+	d.password = &password
 	return d
 }
 
@@ -228,6 +253,10 @@ func (d *DataFlow) buildRequest() (*http.Request, error) {
 		req.AddCookie(cookie)
 	}
 
+	if d.userName != nil && d.password != nil {
+		req.SetBasicAuth(*d.userName, *d.password)
+	}
+
 	return req, nil
 }
 
@@ -276,6 +305,8 @@ func (d *DataFlow) Do() ([]byte, error) {
 	if d.Err != nil {
 		return nil, d.Err
 	}
+
+	defer d.Reset()
 
 	d.req, d.Err = d.buildRequest()
 	if d.Err != nil {
