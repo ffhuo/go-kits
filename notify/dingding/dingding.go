@@ -9,7 +9,8 @@ import (
 	dingrobot "github.com/alibabacloud-go/dingtalk/robot_1_0"
 	util "github.com/alibabacloud-go/tea-utils/service"
 	"github.com/alibabacloud-go/tea/tea"
-	// "github.com/ffhuo/go-kits/request"
+	"github.com/ffhuo/go-kits/gout"
+	"github.com/pkg/errors"
 )
 
 type Client struct {
@@ -94,41 +95,33 @@ func (c *Client) SendRobotMessage(userIds []*string, msg interface{}) error {
 }
 
 func (c *Client) GetUserByMobile(mobile string) (string, error) {
-	// var err error
-	// if err = c.GetAccessToken(); err != nil {
-	// 	return "", err
-	// }
-	// url := "https://oapi.dingtalk.com/topapi/v2/user/getbymobile?access_token=" + *c.token
+	var (
+		err    error
+		result struct {
+			ErrCode int    `json:"errcode"`
+			ErrMsg  string `json:"errmsg"`
+			Result  struct {
+				UserId string `json:"userid"`
+			}
+		}
+	)
+	if err = c.GetAccessToken(); err != nil {
+		return "", err
+	}
+	args := make(map[string]interface{}, 2)
+	args["mobile"] = mobile
+	args["support_exclusive_account_search"] = "true"
 
-	// args := make(map[string]interface{}, 2)
-	// args["mobile"] = mobile
-	// args["support_exclusive_account_search"] = "true"
-	// b, _ := json.Marshal(args)
+	if _, err = gout.POST("https://oapi.dingtalk.com/topapi/v2/user/getbymobile").
+		AddQuery("access_token", *c.token).
+		SetJSON(args).
+		BindJSON(&result).
+		Do(); err != nil {
+		return "", errors.Wrap(err, "failed to send request")
+	}
 
-	// req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(b))
-	// if err != nil {
-	// 	return "", err
-	// }
-
-	// res, err := request.SendRequest(req)
-	// if err != nil {
-	// 	return "", err
-	// }
-
-	// var result struct {
-	// 	ErrCode int    `json:"errcode"`
-	// 	ErrMsg  string `json:"errmsg"`
-	// 	Result  struct {
-	// 		UserId string `json:"userid"`
-	// 	}
-	// }
-
-	// if err = json.Unmarshal(res, &result); err != nil {
-	// 	return "", errors.Wrap(err, "failed to unmarshal response")
-	// }
-	// if result.ErrCode != 0 {
-	// 	return "", errors.Errorf("failed to get user by mobile: %s", result.ErrMsg)
-	// }
-	// return result.Result.UserId, nil
-	return "", nil
+	if result.ErrCode != 0 {
+		return "", errors.Errorf("failed to get user by mobile: %s", result.ErrMsg)
+	}
+	return result.Result.UserId, nil
 }

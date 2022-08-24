@@ -2,6 +2,7 @@ package encode
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 
 	"github.com/ffhuo/go-kits/utils"
@@ -21,10 +22,23 @@ func NewJSONEncoder(obj interface{}) Encoder {
 
 func (j *JSONEncode) Encode(w io.Writer) error {
 	if v, ok := utils.GetBytes(j.obj); ok {
-
+		if ok = json.Valid(v); ok {
+			return errors.New("Not json data")
+		}
+		_, err := w.Write(v)
+		return err
 	}
-	b, _ := json.Marshal(obj)
+
+	b, err := json.Marshal(j.obj)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(b)
 	return err
+}
+
+func (j *JSONEncode) Add(interface{}) error {
+	return errors.New("Not Support Add JSON data")
 }
 
 func (j *JSONEncode) Name() string {
