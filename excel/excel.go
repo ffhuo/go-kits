@@ -14,7 +14,7 @@ func NewExcel(sheetName string) *excelize.File {
 	f := excelize.NewFile()
 	f.SetDefaultFont("Arial")
 	if sheetName != "" {
-		sheet := f.NewSheet(sheetName)
+		sheet, _ := f.NewSheet(sheetName)
 		f.DeleteSheet("Sheet1")
 		f.SetActiveSheet(sheet)
 	}

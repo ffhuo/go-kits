@@ -178,6 +178,30 @@ func Unscoped() Args {
 	}
 }
 
+func WhereIn(query string, arg interface{}) Args {
+	return func(c *gorm.DB) *gorm.DB {
+		return c.Where(query+" in (?)", arg)
+	}
+}
+
+func WhereNotIn(query string, arg interface{}) Args {
+	return func(c *gorm.DB) *gorm.DB {
+		return c.Where(query+" not in (?)", arg)
+	}
+}
+
+func WhereBetween(query string, args ...interface{}) Args {
+	return func(c *gorm.DB) *gorm.DB {
+		return c.Where(query+" between (?) and (?)", args...)
+	}
+}
+
+func WhereNotBetween(query string, args ...interface{}) Args {
+	return func(c *gorm.DB) *gorm.DB {
+		return c.Where(query+" not between (?) and (?)", args...)
+	}
+}
+
 func (cli *Client) Delete(ctx context.Context, model interface{}, args ...Args) error {
 	dbCli := cli.GetDbWriter(ctx)
 	dbCli = dbCli.Model(model)

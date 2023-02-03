@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"time"
 
-	openapi "github.com/alibabacloud-go/darabonba-openapi/client"
+	openapi "github.com/alibabacloud-go/darabonba-openapi/v2/client"
 	dingtalk "github.com/alibabacloud-go/dingtalk/oauth2_1_0"
 	dingrobot "github.com/alibabacloud-go/dingtalk/robot_1_0"
-	util "github.com/alibabacloud-go/tea-utils/service"
+	util "github.com/alibabacloud-go/tea-utils/v2/service"
 	"github.com/alibabacloud-go/tea/tea"
 	"github.com/ffhuo/go-kits/gout"
 	"github.com/pkg/errors"
