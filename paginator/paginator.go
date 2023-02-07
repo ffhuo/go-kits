@@ -1,5 +1,10 @@
 package paginator
 
+import (
+	"fmt"
+	"reflect"
+)
+
 var (
 	DefaultPerPage int64 = 10
 	DefaultPage    int64 = 1
@@ -38,6 +43,34 @@ func (p *Paginator) GetOffset() int {
 
 func (p *Paginator) GetLimitAndOffset() (limit, offset int) {
 	return p.GetLimit(), p.GetOffset()
+}
+
+func (p *Paginator) GetPageData(data interface{}) ([]interface{}, error) {
+	page := p.page
+	pageSize := p.perPage
+
+	result := make([]interface{}, 0)
+	s := reflect.Indirect(reflect.ValueOf(data))
+	if s.Kind() != reflect.Slice && s.Kind() != reflect.Array {
+		return result, fmt.Errorf("not slice")
+	}
+
+	index := 0
+	if page > 0 {
+		index = int((page - 1) * pageSize)
+	}
+	if index < 0 {
+		index = 0
+	}
+
+	for i := index; i < s.Len(); i++ {
+		interf := s.Index(i).Interface()
+		result = append(result, interf)
+		if len(result) == int(pageSize) {
+			break
+		}
+	}
+	return result, nil
 }
 
 func NewPaginator(page, pageSize int64) *Paginator {
