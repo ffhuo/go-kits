@@ -202,6 +202,12 @@ func WhereNotBetween(query string, args ...interface{}) Args {
 	}
 }
 
+func LeftJoin(table, column1, column2 string) Args {
+	return func(c *gorm.DB) *gorm.DB {
+		return c.Joins("left join `"+table+"` on `"+column1+"` = `"+column2+"`", table, column1, column2)
+	}
+}
+
 func (cli *Client) Delete(ctx context.Context, model interface{}, args ...Args) error {
 	dbCli := cli.GetDbWriter(ctx)
 	dbCli = dbCli.Model(model)
