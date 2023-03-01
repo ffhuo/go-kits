@@ -3,10 +3,12 @@ package gout
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
 	"time"
 
 	"github.com/ffhuo/go-kits/decode"
@@ -21,8 +23,9 @@ var (
 type DataFlow struct {
 	*http.Client
 
-	c   context.Context
-	Err error
+	debug bool
+	c     context.Context
+	Err   error
 
 	method   string
 	url      string
@@ -108,6 +111,11 @@ func (d *DataFlow) SetBasicAuth(userName, password string) *DataFlow {
 
 func (d *DataFlow) SetHeader(header map[string]string) *DataFlow {
 	d.headerEncoder = header
+	return d
+}
+
+func (d *DataFlow) Debug() *DataFlow {
+	d.debug = true
 	return d
 }
 
@@ -257,6 +265,10 @@ func (d *DataFlow) buildRequest() (*http.Request, error) {
 		req.SetBasicAuth(*d.userName, *d.password)
 	}
 
+	if d.debug {
+		fmt.Fprintf(os.Stdout, "gout::request %+v\n", body.String())
+	}
+
 	return req, nil
 }
 
@@ -298,6 +310,11 @@ func (d *DataFlow) decodeBody() ([]byte, error) {
 	if err = d.bodyDecoder.Decode(d.resp.Body); err != nil {
 		return bodyBytes, err
 	}
+
+	if d.debug {
+		fmt.Fprintf(os.Stdout, "gout::response %+v\n", string(bodyBytes))
+	}
+
 	return bodyBytes, nil
 }
 
