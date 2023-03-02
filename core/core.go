@@ -30,6 +30,7 @@ type option struct {
 	disablePrometheus bool
 	enableCors        bool
 	log               *zap.Logger
+	withoutTracePaths map[string]bool
 }
 
 func WithName(name string) Option {
@@ -78,6 +79,15 @@ func WithEnableCors() Option {
 	}
 }
 
+func WithoutTracePaths(paths []string) Option {
+	return func(o *option) {
+		o.withoutTracePaths = make(map[string]bool, len(paths))
+		for _, path := range paths {
+			o.withoutTracePaths[path] = true
+		}
+	}
+}
+
 var _ Mux = (*mux)(nil)
 
 // Mux http mux
@@ -107,8 +117,13 @@ func New(options ...Option) (Mux, error) {
 		engine: gin.New(),
 	}
 
+	opt := new(option)
+	for _, f := range options {
+		f(opt)
+	}
+
 	// withoutTracePaths 这些请求，默认不记录日志
-	withoutTracePaths := map[string]bool{
+	for k, v := range map[string]bool{
 		"/metrics": true,
 
 		"/debug/pprof/":             true,
@@ -128,11 +143,8 @@ func New(options ...Option) (Mux, error) {
 		"/healthCheck": true,
 
 		"/docs/index.html": true,
-	}
-
-	opt := new(option)
-	for _, f := range options {
-		f(opt)
+	} {
+		opt.withoutTracePaths[k] = v
 	}
 
 	mux.debug = opt.debug
@@ -140,7 +152,7 @@ func New(options ...Option) (Mux, error) {
 	mux.log = opt.log
 
 	if opt.log != nil {
-		mux.engine.Use(mux.genRequestID(), mux.Logger(opt.log), gin.Recovery())
+		mux.engine.Use(mux.genRequestID(), mux.Logger(opt.log, opt.withoutTracePaths), gin.Recovery())
 	} else {
 		mux.engine.Use(mux.genRequestID(), gin.Logger(), gin.Recovery())
 	}
@@ -158,7 +170,7 @@ func New(options ...Option) (Mux, error) {
 	}
 
 	if !opt.disablePrometheus {
-		p := prometheus.Init(mux.engine, prometheus.Ignore(withoutTracePaths))
+		p := prometheus.Init(mux.engine, prometheus.Ignore(opt.withoutTracePaths))
 		mux.engine.Use(p.Middleware())
 	}
 
@@ -192,13 +204,16 @@ func New(options ...Option) (Mux, error) {
 	return mux, nil
 }
 
-func (m *mux) Logger(log *zap.Logger) gin.HandlerFunc {
+func (m *mux) Logger(log *zap.Logger, ignorePaths map[string]bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 		path := c.Request.URL.Path
 		query := c.Request.URL.RawQuery
 		c.Next()
 
+		if _, ok := ignorePaths[path]; ok {
+			return
+		}
 		cost := time.Since(start)
 		if cost > time.Minute {
 			// Truncate in a golang < 1.8 safe way

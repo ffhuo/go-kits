@@ -115,13 +115,13 @@ func New(opts ...Option) (*Client, error) {
 	}
 
 	if opt.rAddr != "" {
-		if cli.dbR, err = DBConnect(opt.rAddr, &opt); err != nil {
+		if cli.dbR, err = Connect(opt.rAddr, &opt); err != nil {
 			return nil, errors.Wrap(err, "connect read db error")
 		}
 	}
 
 	if opt.wAddr != "" {
-		if cli.dbW, err = DBConnect(opt.wAddr, &opt); err != nil {
+		if cli.dbW, err = Connect(opt.wAddr, &opt); err != nil {
 			return nil, errors.Wrap(err, "connect write db error")
 		}
 	}
@@ -204,7 +204,7 @@ func WhereNotBetween(query string, args ...interface{}) Args {
 
 func LeftJoin(table, column1, column2 string) Args {
 	return func(c *gorm.DB) *gorm.DB {
-		return c.Joins("left join `"+table+"` on `"+column1+"` = `"+column2+"`", table, column1, column2)
+		return c.Joins("left join `" + table + "` on `" + column1 + "` = `" + column2 + "`")
 	}
 }
 
@@ -263,7 +263,7 @@ func (cli *Client) Update(ctx context.Context, model interface{}, metric map[str
 	return dbCli.Updates(metric).Error
 }
 
-func DBConnect(addr string, opt *option) (*gorm.DB, error) {
+func Connect(addr string, opt *option) (*gorm.DB, error) {
 	switch opt.driver {
 	case "mysql":
 		return MysqlConnect(addr, opt)
