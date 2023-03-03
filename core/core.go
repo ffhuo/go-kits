@@ -123,6 +123,9 @@ func New(options ...Option) (Mux, error) {
 	}
 
 	// withoutTracePaths 这些请求，默认不记录日志
+	if opt.withoutTracePaths == nil {
+		opt.withoutTracePaths = make(map[string]bool)
+	}
 	for k, v := range map[string]bool{
 		"/metrics": true,
 
