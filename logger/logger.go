@@ -141,6 +141,10 @@ func New(opts ...Option) (*Logger, error) {
 	return &Logger{log: log}, nil
 }
 
+func (l *Logger) Logger() *zap.Logger {
+	return l.log
+}
+
 func (l *Logger) Debug(ctx context.Context, msg string, data ...interface{}) {
 	log := l.log.Sugar()
 	fileds := Fields(ctx)
