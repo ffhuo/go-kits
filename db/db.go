@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/ffhuo/go-kits/logger"
 	"github.com/ffhuo/go-kits/paginator"
 	"github.com/pkg/errors"
 	"gorm.io/driver/mysql"
@@ -22,6 +23,8 @@ type option struct {
 	maxOpenConn     int
 	maxIdleConn     int
 	connMaxLifeTime time.Duration
+	plugins         []gorm.Plugin
+	log             *logger.Logger
 }
 
 func Debug() Option {
@@ -90,6 +93,18 @@ func SetConnMaxLifetime(connMaxLifeTime time.Duration) Option {
 
 		// // 设置最大连接超时
 		// sqlDB.SetConnMaxLifetime(time.Minute * connMaxLifeTime)
+	}
+}
+
+func Logger(log *logger.Logger) Option {
+	return func(o *option) {
+		o.log = log
+	}
+}
+
+func Plugins(plugin ...gorm.Plugin) Option {
+	return func(opt *option) {
+		opt.plugins = plugin
 	}
 }
 

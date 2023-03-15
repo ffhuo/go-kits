@@ -173,8 +173,8 @@ func New(options ...Option) (Mux, error) {
 	}
 
 	if !opt.disablePrometheus {
-		p := prometheus.Init(mux.engine, prometheus.Ignore(opt.withoutTracePaths))
-		mux.engine.Use(p.Middleware())
+		p := prometheus.Init(prometheus.Logger(opt.log), prometheus.Handler(mux.engine))
+		mux.engine.Use(p.Middleware(opt.withoutTracePaths))
 	}
 
 	if opt.enableCors {

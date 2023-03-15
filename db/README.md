@@ -1,3 +1,6 @@
+# mysql监控
+
+```golang
 package main
 
 import (
@@ -30,3 +33,4 @@ func main() {
 		}),
 	))
 }
+```
