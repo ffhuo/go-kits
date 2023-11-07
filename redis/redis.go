@@ -3,10 +3,10 @@ package redis
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	"github.com/pkg/errors"
 )
 
 type RedisCli struct {
@@ -45,7 +45,7 @@ func (c *RedisCli) redisConnect(addrs []string, password string) (*redis.Client,
 	})
 
 	if err := client.Ping(c.ctx).Err(); err != nil {
-		return nil, errors.Wrap(err, "ping redis err")
+		return nil, fmt.Errorf("ping redis err: %v", err)
 	}
 
 	return client, nil
@@ -61,7 +61,7 @@ func (c *RedisCli) redisClusterConnect(addrs []string, password string) (*redis.
 	})
 
 	if err := client.Ping(c.ctx).Err(); err != nil {
-		return nil, errors.Wrap(err, "ping redis err")
+		return nil, fmt.Errorf("ping redis err: %v", err)
 	}
 
 	return client, nil
@@ -77,7 +77,7 @@ func (c *RedisCli) RedisClient() redis.Cmdable {
 // Set set some <key,value> into redis
 func (c *RedisCli) Set(key, value string, ttl time.Duration) error {
 	if err := c.RedisClient().Set(c.ctx, key, value, ttl).Err(); err != nil {
-		return errors.Wrapf(err, "redis set key: %s err", key)
+		return fmt.Errorf("redis set key: %s err: %v", key, err)
 	}
 
 	return nil
@@ -86,7 +86,7 @@ func (c *RedisCli) Set(key, value string, ttl time.Duration) error {
 func (c *RedisCli) SetWithData(key string, value interface{}, ttl time.Duration) error {
 	data, err := json.Marshal(value)
 	if err != nil {
-		return errors.Wrapf(err, "redis set key: %s marshal err", key)
+		return fmt.Errorf("redis set key: %s marshal err: %v", key, err)
 	}
 	return c.Set(key, string(data), ttl)
 }
@@ -95,7 +95,7 @@ func (c *RedisCli) SetWithData(key string, value interface{}, ttl time.Duration)
 func (c *RedisCli) Get(key string) (string, error) {
 	value, err := c.RedisClient().Get(c.ctx, key).Result()
 	if err != nil {
-		return "", errors.Wrapf(err, "redis get key: %s err", key)
+		return "", fmt.Errorf("redis get key: %s err: %v", key, err)
 	}
 
 	return value, nil
@@ -111,7 +111,7 @@ func (c *RedisCli) SetNX(key, value string, ttl time.Duration) bool {
 func (c *RedisCli) TTL(key string) (time.Duration, error) {
 	ttl, err := c.RedisClient().TTL(c.ctx, key).Result()
 	if err != nil {
-		return -1, errors.Wrapf(err, "redis get key: %s err", key)
+		return -1, fmt.Errorf("redis get key: %s err: %v", key, err)
 	}
 
 	return ttl, nil
@@ -129,7 +129,6 @@ func (c *RedisCli) ExpireAt(key string, ttl time.Time) bool {
 	return ok
 }
 
-//
 func (c *RedisCli) Exists(keys ...string) bool {
 	if len(keys) == 0 {
 		return true

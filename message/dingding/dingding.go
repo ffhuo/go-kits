@@ -2,6 +2,7 @@ package dingding
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	openapi "github.com/alibabacloud-go/darabonba-openapi/v2/client"
@@ -10,7 +11,6 @@ import (
 	util "github.com/alibabacloud-go/tea-utils/v2/service"
 	"github.com/alibabacloud-go/tea/tea"
 	"github.com/ffhuo/go-kits/gout"
-	"github.com/pkg/errors"
 )
 
 type Client struct {
@@ -117,11 +117,11 @@ func (c *Client) GetUserByMobile(mobile string) (string, error) {
 		SetJSON(args).
 		BindJSON(&result).
 		Do(); err != nil {
-		return "", errors.Wrap(err, "failed to send request")
+		return "", fmt.Errorf("failed to send request: %v", err)
 	}
 
 	if result.ErrCode != 0 {
-		return "", errors.Errorf("failed to get user by mobile: %s", result.ErrMsg)
+		return "", fmt.Errorf("failed to get user by mobile: %s", result.ErrMsg)
 	}
 	return result.Result.UserId, nil
 }

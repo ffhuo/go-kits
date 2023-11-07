@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"strconv"
 
-	"github.com/pkg/errors"
 	"github.com/xuri/excelize/v2"
 )
 
@@ -43,19 +42,20 @@ func WriteToXlsx(f *excelize.File, sheetName string, title []string, data [][]in
 
 	for i, row := range data {
 		for index, value := range row {
-			tempValue := reflect.ValueOf(value)
-			switch tempValue.Kind() {
-			case reflect.Int, reflect.Int32, reflect.Int64, reflect.Int8:
-				f.SetCellValue(sheetName, getCellNum(index, i+2), tempValue.Int())
-			case reflect.Uint, reflect.Uint16, reflect.Uint32, reflect.Uint8, reflect.Uint64:
-				f.SetCellValue(sheetName, getCellNum(index, i+2), tempValue.Uint())
-			case reflect.String:
-				f.SetCellValue(sheetName, getCellNum(index, i+2), tempValue.String())
-			case reflect.Float32, reflect.Float64:
-				f.SetCellValue(sheetName, getCellNum(index, i+2), tempValue.Float())
-			default:
-				return errors.Errorf("write file type unKnow: %v", tempValue.Kind())
-			}
+			f.SetCellValue(sheetName, getCellNum(index, i+2), value)
+			// tempValue := reflect.ValueOf(value)
+			// switch tempValue.Kind() {
+			// case reflect.Int, reflect.Int32, reflect.Int64, reflect.Int8:
+			// 	f.SetCellValue(sheetName, getCellNum(index, i+2), tempValue.Int())
+			// case reflect.Uint, reflect.Uint16, reflect.Uint32, reflect.Uint8, reflect.Uint64:
+			// 	f.SetCellValue(sheetName, getCellNum(index, i+2), tempValue.Uint())
+			// case reflect.String:
+			// 	f.SetCellValue(sheetName, getCellNum(index, i+2), tempValue.String())
+			// case reflect.Float32, reflect.Float64:
+			// 	f.SetCellValue(sheetName, getCellNum(index, i+2), tempValue.Float())
+			// default:
+			// 	return fmt.Errorf("write file type unKnow: %v", tempValue.Kind())
+			// }
 		}
 	}
 	return nil
@@ -114,7 +114,7 @@ func WriteDataToXlsx(f *excelize.File, sheetName string, data interface{}, examp
 			case reflect.Float32, reflect.Float64:
 				f.SetCellValue(sheetName, getCellNum(index, i+2), field.Float())
 			default:
-				errors.Errorf("write file type unKnow: %v", field.Kind())
+				fmt.Errorf("write file type unKnow: %v", field.Kind())
 			}
 			index++
 		}
@@ -130,12 +130,12 @@ func Read(file io.Reader, sheet string) ([]map[string]string, error) {
 
 	xlsx, err := excelize.OpenReader(file)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to read Excel file")
+		return nil, fmt.Errorf("failed to read Excel file: %v", err)
 	}
 
 	sheets := xlsx.GetSheetList()
 	if len(sheets) == 0 {
-		return nil, errors.New("no sheet in Excel file")
+		return nil, fmt.Errorf("no sheet in Excel file")
 	}
 
 	if sheet != "" {
@@ -148,7 +148,7 @@ func Read(file io.Reader, sheet string) ([]map[string]string, error) {
 		}
 
 		if !hasSheet {
-			return nil, errors.Errorf("sheet %s not found", sheet)
+			return nil, fmt.Errorf("sheet %s not found", sheet)
 		}
 	} else {
 		sheet = sheets[0]
@@ -157,13 +157,13 @@ func Read(file io.Reader, sheet string) ([]map[string]string, error) {
 	titles := make(map[int]string)
 	rows, err := xlsx.Rows(sheet)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to read Excel row")
+		return nil, fmt.Errorf("failed to read Excel row: %v", err)
 	}
 	// 读取首行
 	if rows.Next() {
 		title, err := rows.Columns()
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to read Excel column")
+			return nil, fmt.Errorf("failed to read Excel column: %v", err)
 		}
 		for i, v := range title {
 			titles[i] = v
@@ -173,7 +173,7 @@ func Read(file io.Reader, sheet string) ([]map[string]string, error) {
 	for rows.Next() {
 		row, err := rows.Columns()
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to read Excel column")
+			return nil, fmt.Errorf("failed to read Excel column: %v", err)
 		}
 		if len(row) == 0 {
 			break

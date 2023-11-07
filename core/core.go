@@ -13,8 +13,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"
-	"github.com/gofrs/uuid"
-	"github.com/pkg/errors"
+	"github.com/google/uuid"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"go.uber.org/zap"
@@ -244,7 +243,7 @@ func (m *mux) Start(port string) error {
 	}
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			panic(errors.Wrap(err, "server start: "))
+			panic(fmt.Errorf("server start: %v", err))
 		}
 	}()
 	if m.debug {
@@ -293,12 +292,8 @@ func (m *mux) genRequestID() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		requestId := c.Request.Header.Get("requestId")
 		if requestId == "" {
-			req, err := uuid.NewV4()
-			if err != nil {
-				requestId = ""
-			} else {
-				requestId = strings.ReplaceAll(req.String(), "-", "")
-			}
+			req := uuid.New()
+			requestId = strings.ReplaceAll(req.String(), "-", "")
 		}
 
 		c.Set("requestId", requestId)

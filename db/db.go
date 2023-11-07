@@ -2,11 +2,11 @@ package db
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/ffhuo/go-kits/logger"
 	"github.com/ffhuo/go-kits/paginator"
-	"github.com/pkg/errors"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -126,18 +126,18 @@ func New(opts ...Option) (*Client, error) {
 	}
 
 	if opt.rAddr == "" && opt.wAddr == "" {
-		return nil, errors.New("read and write addr is empty")
+		return nil, fmt.Errorf("read and write addr is empty")
 	}
 
 	if opt.rAddr != "" {
 		if cli.dbR, err = Connect(opt.rAddr, &opt); err != nil {
-			return nil, errors.Wrap(err, "connect read db error")
+			return nil, fmt.Errorf("connect read db error: %v", err)
 		}
 	}
 
 	if opt.wAddr != "" {
 		if cli.dbW, err = Connect(opt.wAddr, &opt); err != nil {
-			return nil, errors.Wrap(err, "connect write db error")
+			return nil, fmt.Errorf("connect write db error: %v", err)
 		}
 	}
 
@@ -295,12 +295,12 @@ func MysqlConnect(addr string, opt *option) (*gorm.DB, error) {
 		DSN: addr,
 	}), gormConfig)
 	if err != nil {
-		return nil, errors.Wrap(err, "初始化DB时出错")
+		return nil, fmt.Errorf("初始化DB时出错: %v", err)
 	}
 
 	sqlDB, err := cli.DB()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to connect")
+		return nil, fmt.Errorf("failed to connect: %v", err)
 	}
 
 	if opt.connMaxLifeTime != 0 {
@@ -323,12 +323,12 @@ func SqliteConnect(addr string, opt *option) (*gorm.DB, error) {
 
 	cli, err := gorm.Open(sqlite.Open(addr), gormConfig)
 	if err != nil {
-		return nil, errors.Wrap(err, "初始化DB时出错")
+		return nil, fmt.Errorf("初始化DB时出错: %v", err)
 	}
 
 	sqlDB, err := cli.DB()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to connect")
+		return nil, fmt.Errorf("failed to connect: %v", err)
 	}
 
 	if opt.connMaxLifeTime != 0 {

@@ -1,10 +1,9 @@
 package utils
 
 import (
+	"fmt"
 	"reflect"
 	"unsafe"
-
-	"github.com/pkg/errors"
 )
 
 // BytesToString 没有内存开销的转换
@@ -30,7 +29,7 @@ func ToMap(in interface{}) (map[string]interface{}, error) {
 		v = v.Elem()
 	}
 	if v.Kind() != reflect.Struct {
-		return nil, errors.Errorf("ToMap only accepts struct or struct pointer; got %T", v)
+		return nil, fmt.Errorf("ToMap only accepts struct or struct pointer; got %T", v)
 	}
 
 	out := make(map[string]interface{})
@@ -77,11 +76,11 @@ func ToMap(in interface{}) (map[string]interface{}, error) {
 func ToStruct(m map[string]interface{}, u interface{}) error {
 	v := reflect.ValueOf(u)
 	if v.Kind() != reflect.Ptr {
-		return errors.New("ToStruct only accepts struct pointer")
+		return fmt.Errorf("ToStruct only accepts struct pointer")
 	}
 	v = v.Elem()
 	if v.Kind() != reflect.Struct {
-		return errors.New("ToStruct only accepts struct")
+		return fmt.Errorf("ToStruct only accepts struct")
 	}
 	findFromMap := func(key string, nameTag string) interface{} {
 		for k, v := range m {

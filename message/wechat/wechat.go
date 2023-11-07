@@ -1,10 +1,10 @@
 package wechat
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/ffhuo/go-kits/gout"
-	"github.com/pkg/errors"
 )
 
 type Client struct {
@@ -38,11 +38,11 @@ func (c *Client) GetAccessToken() error {
 		AddQuery("corpsecret", c.corpsecret).
 		BindJSON(&result).
 		Do(); err != nil {
-		return errors.Wrap(err, "failed to send request")
+		return fmt.Errorf("failed to send request: %v", err)
 	}
 
 	if result.ErrCode != 0 {
-		return errors.Errorf("failed to get user by mobile: %s", result.ErrMsg)
+		return fmt.Errorf("failed to get user by mobile: %s", result.ErrMsg)
 	}
 	c.token = result.AccessToken
 	c.expireTime = time.Now().Add(time.Duration(result.ExpiresIn) * time.Second)
