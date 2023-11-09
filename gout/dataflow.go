@@ -317,21 +317,19 @@ func (d *DataFlow) decodeBody() ([]byte, error) {
 	return bodyBytes, nil
 }
 
-func (d *DataFlow) Do() (*DataFlow, error) {
+func (d *DataFlow) Do() (*DataFlow, []byte, error) {
 	if d.Err != nil {
-		return nil, d.Err
+		return d, nil, d.Err
 	}
-
-	defer d.Reset()
 
 	d.req, d.Err = d.buildRequest()
 	if d.Err != nil {
-		return nil, d.Err
+		return d, nil, d.Err
 	}
 
 	d.req.Header, d.Err = d.buildHeader()
 	if d.Err != nil {
-		return nil, d.Err
+		return d, nil, d.Err
 	}
 
 	if d.Timeout == 0 {
@@ -349,15 +347,16 @@ func (d *DataFlow) Do() (*DataFlow, error) {
 
 	d.resp, d.Err = d.Client.Do(d.req)
 	if d.Err != nil {
-		return nil, d.Err
+		return d, nil, d.Err
 	}
 	d.req.Close = true
 
-	_, d.Err = d.decodeBody()
+	var body []byte
+	body, d.Err = d.decodeBody()
 	if d.Err != nil {
-		return nil, d.Err
+		return d, nil, d.Err
 	}
-	return d, nil
+	return d, body, nil
 }
 
 // response
