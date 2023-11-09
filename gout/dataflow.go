@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -295,7 +294,7 @@ func (d *DataFlow) decodeBody() ([]byte, error) {
 		err       error
 		bodyBytes []byte
 	)
-	bodyBytes, err = ioutil.ReadAll(d.resp.Body)
+	bodyBytes, err = io.ReadAll(d.resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -304,7 +303,7 @@ func (d *DataFlow) decodeBody() ([]byte, error) {
 		return bodyBytes, nil
 	}
 	if len(bodyBytes) > 0 {
-		d.resp.Body = ioutil.NopCloser(bytes.NewReader(bodyBytes))
+		d.resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 	}
 
 	if err = d.bodyDecoder.Decode(d.resp.Body); err != nil {
@@ -318,7 +317,7 @@ func (d *DataFlow) decodeBody() ([]byte, error) {
 	return bodyBytes, nil
 }
 
-func (d *DataFlow) Do() ([]byte, error) {
+func (d *DataFlow) Do() (*DataFlow, error) {
 	if d.Err != nil {
 		return nil, d.Err
 	}
@@ -352,6 +351,24 @@ func (d *DataFlow) Do() ([]byte, error) {
 	if d.Err != nil {
 		return nil, d.Err
 	}
+	d.req.Close = true
 
-	return d.decodeBody()
+	_, d.Err = d.decodeBody()
+	if d.Err != nil {
+		return nil, d.Err
+	}
+	return d, nil
+}
+
+// response
+func (d *DataFlow) Response() *http.Response {
+	return d.resp
+}
+
+func (d *DataFlow) StatusCode() int {
+	return d.resp.StatusCode
+}
+
+func (d *DataFlow) Cookies() []*http.Cookie {
+	return d.resp.Cookies()
 }
