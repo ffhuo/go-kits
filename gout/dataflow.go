@@ -3,27 +3,26 @@ package gout
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
+	"log"
 	"net/http"
-	"os"
+	"net/url"
+	"sync"
 	"time"
 
 	"github.com/ffhuo/go-kits/decode"
 	"github.com/ffhuo/go-kits/encode"
 )
 
-var (
-	defaultTimeout time.Duration = 10 * time.Second
-)
+var defaultTimeout time.Duration = 10 * time.Second
 
 // DataFlow controls core data structure of http request
 type DataFlow struct {
-	client *http.Client
-
 	debug bool
-	c     context.Context
-	Err   error
+	*http.Client
+
+	c   context.Context
+	Err error
 
 	method   string
 	url      string
@@ -39,8 +38,10 @@ type DataFlow struct {
 	// http header
 	headerEncoder map[string]string
 
-	//cookie
+	// cookie
 	cookies []*http.Cookie
+
+	req *http.Request
 
 	cancel context.CancelFunc
 
@@ -50,16 +51,12 @@ type DataFlow struct {
 func New(c ...*http.Client) *DataFlow {
 	out := &DataFlow{}
 	if len(c) == 0 || c[0] == nil {
-		out.client = http.DefaultClient
+		out.Client = http.DefaultClient
 	} else {
-		out.client = c[0]
+		out.Client = c[0]
 	}
 
 	return out
-}
-
-func (d *DataFlow) Client() *http.Client {
-	return d.client
 }
 
 func (d *DataFlow) Reset() {
@@ -75,6 +72,7 @@ func (d *DataFlow) Reset() {
 
 	d.headerEncoder = nil
 	d.cookies = nil
+	d.req = nil
 	d.resp = nil
 }
 
@@ -102,6 +100,11 @@ func (d *DataFlow) DELETE(url string) *DataFlow {
 	return d
 }
 
+func (d *DataFlow) Debug() *DataFlow {
+	d.debug = true
+	return d
+}
+
 func (d *DataFlow) SetBasicAuth(userName, password string) *DataFlow {
 	d.userName = &userName
 	d.password = &password
@@ -113,16 +116,16 @@ func (d *DataFlow) SetHeader(header map[string]string) *DataFlow {
 	return d
 }
 
-func (d *DataFlow) Debug() *DataFlow {
-	d.debug = true
-	return d
-}
-
 func (d *DataFlow) AddHeader(key, value string) *DataFlow {
 	if len(d.headerEncoder) == 0 {
 		d.headerEncoder = make(map[string]string)
 	}
 	d.headerEncoder[key] = value
+	return d
+}
+
+func (d *DataFlow) SetRequest(req *http.Request) *DataFlow {
+	d.req = req
 	return d
 }
 
@@ -203,7 +206,7 @@ func (d *DataFlow) BindYAML(res interface{}) *DataFlow {
 }
 
 func (d *DataFlow) SetTimeout(timeout time.Duration) *DataFlow {
-	d.client.Timeout = timeout
+	d.Timeout = timeout
 	return d
 }
 
@@ -218,27 +221,28 @@ func (d *DataFlow) buildRequest() (*http.Request, error) {
 		req *http.Request
 	)
 	body := &bytes.Buffer{}
-
-	if d.bodyEncoder != nil {
-		if err = d.bodyEncoder.Encode(body); d.Err != nil {
+	if d.req == nil {
+		if d.bodyEncoder != nil {
+			if err = d.bodyEncoder.Encode(body); d.Err != nil {
+				return nil, err
+			}
+		}
+		req, err = http.NewRequest(d.method, d.url, body)
+		if err != nil {
 			return nil, err
 		}
+	} else {
+		req = d.req
+		if len(d.method) > 0 {
+			req.Method = d.method
+		}
+		if len(d.url) > 0 {
+			req.URL, err = url.Parse(d.url)
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
-	req, err = http.NewRequest(d.method, d.url, body)
-	if err != nil {
-		return nil, err
-	}
-	// 	req = http.NewRequest(d.method, d., body io.Reader)
-	// 	if len(d.method) > 0 {
-	// 		req.Method = d.method
-	// 	}
-	// 	if len(d.url) > 0 {
-	// 		req.URL, err = url.Parse(d.url)
-	// 		if err != nil {
-	// 			return nil, err
-	// 		}
-	// 	}
-	// }
 	if d.queryEncoder != nil {
 		if err = d.queryEncoder.Encode(body); err != nil {
 			return nil, err
@@ -259,7 +263,8 @@ func (d *DataFlow) buildRequest() (*http.Request, error) {
 	}
 
 	if d.debug {
-		fmt.Fprintf(os.Stdout, "gout::request %+v\n", body.String())
+		log.Printf("gout::request:%s %+v\n", d.url, body.String())
+		// fmt.Fprintf(os.Stdout, "gout::request:%s %+v\n", d.url, body.String())
 	}
 
 	return req, nil
@@ -283,52 +288,64 @@ func (d *DataFlow) buildHeader() (http.Header, error) {
 	return header, nil
 }
 
-func (d *DataFlow) decodeBody() ([]byte, error) {
-	var (
-		err       error
-		bodyBytes []byte
-	)
-	bodyBytes, err = io.ReadAll(d.resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	d.resp.Body.Close()
-	if d.bodyDecoder == nil {
-		return bodyBytes, nil
-	}
-	if len(bodyBytes) > 0 {
-		d.resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-	}
+var pool = sync.Pool{
+	New: func() interface{} {
+		return bytes.NewBuffer(make([]byte, 4096))
+	},
+}
 
-	if err = d.bodyDecoder.Decode(d.resp.Body); err != nil {
-		return bodyBytes, err
+func (d *DataFlow) decodeBody(reader io.Reader) ([]byte, error) {
+	var err error
+
+	if d.bodyDecoder == nil {
+		return nil, nil
+	}
+	// if len(bodyBytes) > 0 {
+	// 	d.resp.Body = ioutil.NopCloser(bytes.NewReader(bodyBytes))
+	// }
+	buffer := pool.Get().(*bytes.Buffer)
+	buffer.Reset()
+	defer pool.Put(buffer)
+
+	if _, err = io.Copy(buffer, reader); err != nil {
+		return nil, err
 	}
 
 	if d.debug {
-		fmt.Fprintf(os.Stdout, "gout::response %+v\n", string(bodyBytes))
+		if buffer.Len() > 1024 {
+			log.Printf("gout::response:%s %+v\n", d.url, buffer.String()[:1024])
+		} else {
+			log.Printf("gout::response:%s %+v\n", d.url, buffer.String())
+		}
+		// fmt.Fprintf(os.Stdout, "gout::response:%s %+v\n", d.url, buffer.String())
 	}
 
-	return bodyBytes, nil
+	if err = d.bodyDecoder.Decode(buffer); err != nil {
+		return nil, err
+	}
+
+	return buffer.Bytes(), nil
 }
 
-func (d *DataFlow) Do() (*DataFlow, []byte, error) {
+func (d *DataFlow) Do() (int, error) {
 	if d.Err != nil {
-		return d, nil, d.Err
+		return 0, d.Err
 	}
 
-	var req *http.Request
-	req, d.Err = d.buildRequest()
+	defer d.Reset()
+
+	d.req, d.Err = d.buildRequest()
 	if d.Err != nil {
-		return d, nil, d.Err
+		return 0, d.Err
 	}
 
-	req.Header, d.Err = d.buildHeader()
+	d.req.Header, d.Err = d.buildHeader()
 	if d.Err != nil {
-		return d, nil, d.Err
+		return 0, d.Err
 	}
 
-	if d.client.Timeout == 0 {
-		d.client.Timeout = defaultTimeout
+	if d.Timeout == 0 {
+		d.Timeout = defaultTimeout
 	}
 
 	var ctx context.Context
@@ -337,32 +354,26 @@ func (d *DataFlow) Do() (*DataFlow, []byte, error) {
 	} else {
 		ctx = context.Background()
 	}
-	d.c, d.cancel = context.WithTimeout(ctx, d.client.Timeout)
+	d.c, d.cancel = context.WithTimeout(ctx, d.Timeout)
 	defer d.cancel()
 
-	d.resp, d.Err = d.client.Do(req)
+	d.resp, d.Err = d.Client.Do(d.req)
 	if d.Err != nil {
-		return d, nil, d.Err
+		return 0, d.Err
 	}
-	req.Close = true
 
-	var body []byte
-	body, d.Err = d.decodeBody()
-	if d.Err != nil {
-		return d, nil, d.Err
+	defer func() {
+		d.resp.Body.Close()
+		d.resp.Close = true
+		d.req.Close = true
+	}()
+	if _, d.Err = d.decodeBody(d.resp.Body); d.Err != nil {
+		return 0, d.Err
 	}
-	return d, body, nil
+
+	return d.resp.StatusCode, nil
 }
 
-// response
-func (d *DataFlow) Response() *http.Response {
-	return d.resp
-}
-
-func (d *DataFlow) StatusCode() int {
-	return d.resp.StatusCode
-}
-
-func (d *DataFlow) Cookies() []*http.Cookie {
+func (d *DataFlow) Cookie() []*http.Cookie {
 	return d.resp.Cookies()
 }
