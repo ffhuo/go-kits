@@ -25,24 +25,24 @@ func (p *Paginator) init() {
 	}
 }
 
-func (p *Paginator) GetPageSize() int64 {
+func (p *Paginator) PageSize() int64 {
 	return p.perPage
 }
 
-func (p *Paginator) GetPage() int64 {
+func (p *Paginator) Page() int64 {
 	return p.page
 }
 
-func (p *Paginator) GetLimit() int {
+func (p *Paginator) Limit() int {
 	return int(p.perPage)
 }
 
-func (p *Paginator) GetOffset() int {
+func (p *Paginator) Offset() int {
 	return int(p.perPage*p.page - p.perPage)
 }
 
 func (p *Paginator) GetLimitAndOffset() (limit, offset int) {
-	return p.GetLimit(), p.GetOffset()
+	return p.Limit(), p.Offset()
 }
 
 func (p *Paginator) GetPageData(data interface{}) ([]interface{}, error) {

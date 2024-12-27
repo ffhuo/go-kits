@@ -1,0 +1,13 @@
+mysql:
+  debug: false
+  dsn: "root:password@tcp(localhost:3306)/myapp_local?charset=utf8mb4&parseTime=True&loc=Local"
+
+redis:
+  addresses: 
+    - "localhost:6379"
+    - "localhost:6380"  # 本地环境使用双节点
+  password: "local-password"
+
+mongodb:
+  uri: "mongodb://localhost:27017"
+  database: "myapp_local"

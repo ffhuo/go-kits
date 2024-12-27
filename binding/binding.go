@@ -6,6 +6,7 @@ package binding
 
 import "strings"
 
+// ContentType constants for different data formats
 const (
 	TYPEJSON = ".json"
 	TYPEXML  = ".xml"
@@ -17,35 +18,30 @@ const (
 // data present in the request such as JSON request body, query parameters or
 // the form POST.
 type Binding interface {
+	// Name returns the name of the binding implementation
 	Name() string
+	// Bind binds the passed []byte data to the passed interface{}
 	Bind([]byte, interface{}) error
 }
 
-// StructValidator is the minimal interface which needs to be implemented in
-// order for it to be used as the validator engine for ensuring the correctness
-// of the request. Gin provides a default implementation for this using
-// https://github.com/go-playground/validator/tree/v8.18.2.
+// StructValidator is the minimal interface which needs to be implemented for
+// validation. It provides a default implementation using go-playground/validator.
 type StructValidator interface {
-	// ValidateStruct can receive any kind of type and it should never panic, even if the configuration is not right.
-	// If the received type is a slice|array, the validation should be performed travel on every element.
-	// If the received type is not a struct or slice|array, any validation should be skipped and nil must be returned.
-	// If the received type is a struct or pointer to a struct, the validation should be performed.
-	// If the struct is not valid or the validation itself fails, a descriptive error should be returned.
-	// Otherwise nil must be returned.
+	// ValidateStruct validates any struct type. It should never panic.
+	// For slices/arrays, validation is performed on each element.
+	// For non-struct types, validation is skipped and nil is returned.
+	// For structs, full validation is performed and errors are returned if any.
 	ValidateStruct(interface{}) error
 
-	// Engine returns the underlying validator engine which powers the
-	// StructValidator implementation.
+	// Engine returns the underlying validator engine
 	Engine() interface{}
 }
 
 // Validator is the default validator which implements the StructValidator
-// interface. It uses https://github.com/go-playground/validator/tree/v8.18.2
-// under the hood.
+// interface using go-playground/validator
 var Validator StructValidator = &defaultValidator{}
 
-// These implement the Binding interface and can be used to bind the data
-// present in the request to struct instances.
+// Available binding implementations
 var (
 	JSON = jsonBinding{}
 	XML  = xmlBinding{}
@@ -53,22 +49,23 @@ var (
 	TOML = tomlBinding{}
 )
 
+// Default returns the appropriate Binding instance based on the file extension
 func Default(fileName string) Binding {
-	if strings.Contains(fileName, TYPEJSON) {
+	switch strings.ToLower(fileName) {
+	case TYPEJSON:
+		return JSON
+	case TYPEXML:
+		return XML
+	case TYPEYAML:
+		return YAML
+	case TYPETOML:
+		return TOML
+	default:
 		return JSON
 	}
-	if strings.Contains(fileName, TYPEXML) {
-		return XML
-	}
-	if strings.Contains(fileName, TYPEYAML) {
-		return YAML
-	}
-	if strings.Contains(fileName, TYPETOML) {
-		return TOML
-	}
-	return TOML
 }
 
+// validate is a helper function to validate an interface using the default validator
 func validate(obj interface{}) error {
 	if Validator == nil {
 		return nil

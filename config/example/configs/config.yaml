@@ -1,0 +1,18 @@
+mysql:
+  debug: true
+  dsn: "root:password@tcp(localhost:3306)/myapp?charset=utf8mb4&parseTime=True&loc=Local"
+  max_idle: 10
+  max_open: 100
+  max_lifetime: 3600
+
+redis:
+  addresses: 
+    - "localhost:6379"
+  database: 0
+  password: "redis-password"
+  max_retries: 3
+
+mongodb:
+  uri: "mongodb://localhost:27017"
+  database: "myapp"
+  timeout: 10

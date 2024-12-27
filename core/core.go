@@ -3,7 +3,7 @@ package core
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"runtime/debug"
 	"strings"
@@ -264,7 +264,7 @@ func (m *mux) traceOPRecord(withoutTracePaths map[string]bool) gin.HandlerFunc {
 		var body []byte
 		if c.Request.Method != http.MethodGet {
 			var err error
-			body, err = ioutil.ReadAll(c.Request.Body)
+			body, err = io.ReadAll(c.Request.Body)
 			if err != nil {
 				if m.log != nil {
 					m.log.Error("core:read body from request error", zap.Error(err))
@@ -272,7 +272,7 @@ func (m *mux) traceOPRecord(withoutTracePaths map[string]bool) gin.HandlerFunc {
 					fmt.Fprintf(gin.DefaultWriter, "core:read body from request error: %v\n", err)
 				}
 			} else {
-				c.Request.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+				c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
 			}
 		} else {
 			body = []byte(c.Request.URL.RequestURI())

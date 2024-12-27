@@ -1,5 +1,6 @@
 package etcd
 
+/*
 import (
 	"context"
 	"time"
@@ -127,3 +128,4 @@ func (c *Client) Unlock(mu *concurrency.Mutex) error {
 
 	return mu.Unlock(ctx)
 }
+*/

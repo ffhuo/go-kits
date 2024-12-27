@@ -19,10 +19,15 @@ import (
 const (
 	// DefaultLevel the default log level
 	DefaultLevel = zapcore.InfoLevel
-
-	// DefaultTimeLayout the default time layout;
+	// DefaultTimeLayout the default time layout
 	DefaultTimeLayout = time.RFC3339
-
+	// DefaultMaxSize the default max size of log file (MB)
+	DefaultMaxSize = 100
+	// DefaultMaxAge the default max age of log file (days)
+	DefaultMaxAge = 7
+	// DefaultMaxBackups the default max backups of log file
+	DefaultMaxBackups = 10
+	// SlowThreshold the default slow threshold
 	SlowThreshold = time.Millisecond * 200
 )
 
@@ -38,6 +43,7 @@ type option struct {
 	formatJSON     bool
 }
 
+// WithFormatJSON set json format
 func WithFormatJSON() Option {
 	return func(opt *option) {
 		opt.formatJSON = true
@@ -97,20 +103,30 @@ func WithFileP(file string) Option {
 }
 
 // WithFileRotationP write log to some file with rotation
-func WithFileRotationP(file string) Option {
+func WithFileRotationP(file string, maxSize, maxBackups, maxAge int) Option {
 	dir := filepath.Dir(file)
 	if err := os.MkdirAll(dir, 0766); err != nil {
 		panic(err)
 	}
 
+	if maxSize <= 0 {
+		maxSize = DefaultMaxSize
+	}
+	if maxBackups <= 0 {
+		maxBackups = DefaultMaxBackups
+	}
+	if maxAge <= 0 {
+		maxAge = DefaultMaxAge
+	}
+
 	return func(opt *option) {
-		opt.file = &lumberjack.Logger{ // concurrent-safed
-			Filename:   file, // 文件路径
-			MaxSize:    128,  // 单个文件最大尺寸，默认单位 M
-			MaxBackups: 300,  // 最多保留 300 个备份
-			MaxAge:     30,   // 最大时间，默认单位 day
-			LocalTime:  true, // 使用本地时间
-			Compress:   true, // 是否压缩 disabled by default
+		opt.file = &lumberjack.Logger{
+			Filename:   file,
+			MaxSize:    maxSize,    // MB
+			MaxBackups: maxBackups, // files
+			MaxAge:     maxAge,     // days
+			LocalTime:  true,
+			Compress:   true,
 		}
 	}
 }
@@ -122,7 +138,7 @@ func WithTimeLayout(timeLayout string) Option {
 	}
 }
 
-// WithEnableConsole write log to os.Stdout or os.Stderr
+// WithDisableConsole disable console output
 func WithDisableConsole() Option {
 	return func(opt *option) {
 		opt.disableConsole = true
@@ -133,90 +149,12 @@ type Logger struct {
 	log *zap.Logger
 }
 
+// New create a new logger
 func New(opts ...Option) (*Logger, error) {
-	log, err := NewLogger(opts...)
-	if err != nil {
-		return nil, err
+	opt := &option{
+		level:  DefaultLevel,
+		fields: make(map[string]string),
 	}
-	return &Logger{log: log}, nil
-}
-
-func (l *Logger) Logger() *zap.Logger {
-	return l.log
-}
-
-func (l *Logger) Debug(ctx context.Context, msg string, data ...interface{}) {
-	log := l.log.Sugar()
-	fileds := Fields(ctx)
-	if len(fileds) != 0 {
-		log = log.With(fileds)
-	}
-	log.Debugf(msg, data...)
-}
-
-func (l *Logger) Info(ctx context.Context, msg string, data ...interface{}) {
-	log := l.log.Sugar()
-	fileds := Fields(ctx)
-	if len(fileds) != 0 {
-		log = log.With(fileds)
-	}
-	log.Infof(msg, data...)
-}
-
-func (l *Logger) Error(ctx context.Context, msg string, data ...interface{}) {
-	log := l.log.Sugar()
-	fileds := Fields(ctx)
-	if len(fileds) != 0 {
-		log = log.With(fileds)
-	}
-	log.Errorf(msg, data...)
-}
-
-func (l *Logger) Warn(ctx context.Context, msg string, data ...interface{}) {
-	log := l.log.Sugar()
-	fileds := Fields(ctx)
-	if len(fileds) != 0 {
-		log = log.With(fileds)
-	}
-	log.Warnf(msg, data...)
-}
-
-func (l *Logger) Trace(ctx context.Context, begin time.Time, fc func() (string, int64), err error) {
-	log := l.log.Sugar()
-	fileds := Fields(ctx)
-	if len(fileds) != 0 {
-		log = log.With(fileds)
-	}
-	elapsed := time.Since(begin)
-	switch {
-	case err != nil && gorm.LogLevel(DefaultLevel) >= gorm.Error && !errors.Is(err, gorm.ErrRecordNotFound):
-		sql, rows := fc()
-		if rows == -1 {
-			log.Errorf("%s %s\n[%.3fms] [rows:%v] %s", utils.FileWithLineNum(), err, float64(elapsed.Nanoseconds())/1e6, "-", sql)
-		} else {
-			log.Errorf("%s %s\n[%.3fms] [rows:%v] %s", utils.FileWithLineNum(), err, float64(elapsed.Nanoseconds())/1e6, rows, sql)
-		}
-	case elapsed > SlowThreshold && SlowThreshold != 0 && gorm.LogLevel(DefaultLevel) >= gorm.Warn:
-		sql, rows := fc()
-		slowLog := fmt.Sprintf("SLOW SQL >= %v", SlowThreshold)
-		if rows == -1 {
-			log.Warnf("%s %s\n[%.3fms] [rows:%v] %s", utils.FileWithLineNum(), slowLog, float64(elapsed.Nanoseconds())/1e6, "-", sql)
-		} else {
-			log.Warnf("%s %s\n[%.3fms] [rows:%v] %s", utils.FileWithLineNum(), slowLog, float64(elapsed.Nanoseconds())/1e6, rows, sql)
-		}
-	case gorm.LogLevel(DefaultLevel) == gorm.Info:
-		sql, rows := fc()
-		if rows == -1 {
-			log.Infof("%s\n[%.3fms] [rows:%v] %s", utils.FileWithLineNum(), float64(elapsed.Nanoseconds())/1e6, "-", sql)
-		} else {
-			log.Infof("%s\n[%.3fms] [rows:%v] %s", utils.FileWithLineNum(), float64(elapsed.Nanoseconds())/1e6, rows, sql)
-		}
-	}
-}
-
-// NewJSONLogger return a json-encoder zap logger,
-func NewLogger(opts ...Option) (*zap.Logger, error) {
-	opt := &option{level: DefaultLevel, fields: make(map[string]string)}
 	for _, f := range opts {
 		f(opt)
 	}
@@ -226,21 +164,32 @@ func NewLogger(opts ...Option) (*zap.Logger, error) {
 		timeLayout = opt.timeLayout
 	}
 
-	// similar to zap.NewProductionEncoderConfig()
+	// 自定义 Duration 编码器
+	durationEncoder := func(d time.Duration, enc zapcore.PrimitiveArrayEncoder) {
+		switch {
+		case d < time.Microsecond:
+			enc.AppendString(fmt.Sprintf("%dns", d.Nanoseconds()))
+		case d < time.Millisecond:
+			enc.AppendString(fmt.Sprintf("%.2fµs", float64(d.Nanoseconds())/float64(time.Microsecond)))
+		case d < time.Second:
+			enc.AppendString(fmt.Sprintf("%.2fms", float64(d.Nanoseconds())/float64(time.Millisecond)))
+		default:
+			enc.AppendString(fmt.Sprintf("%.2fs", float64(d.Nanoseconds())/float64(time.Second)))
+		}
+	}
+
 	encoderConfig := zapcore.EncoderConfig{
-		TimeKey:       "time",
-		LevelKey:      "level",
-		NameKey:       "logger", // used by logger.Named(key); optional; useless
-		CallerKey:     "caller",
-		MessageKey:    "msg",
-		StacktraceKey: "stacktrace", // use by zap.AddStacktrace; optional; useless
-		LineEnding:    zapcore.DefaultLineEnding,
-		EncodeLevel:   zapcore.LowercaseLevelEncoder, // 小写编码器
-		EncodeTime: func(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
-			enc.AppendString(t.Format(timeLayout))
-		},
-		EncodeDuration: zapcore.MillisDurationEncoder,
-		EncodeCaller:   zapcore.ShortCallerEncoder, // 全路径编码器
+		TimeKey:        "time",
+		LevelKey:       "level",
+		NameKey:        "logger",
+		CallerKey:      "caller",
+		MessageKey:     "msg",
+		StacktraceKey:  "stacktrace",
+		LineEnding:     zapcore.DefaultLineEnding,
+		EncodeLevel:    zapcore.LowercaseLevelEncoder,
+		EncodeTime:     zapcore.TimeEncoderOfLayout(timeLayout),
+		EncodeDuration: durationEncoder,
+		EncodeCaller:   zapcore.ShortCallerEncoder,
 	}
 
 	var encoder zapcore.Encoder
@@ -250,38 +199,31 @@ func NewLogger(opts ...Option) (*zap.Logger, error) {
 		encoder = zapcore.NewConsoleEncoder(encoderConfig)
 	}
 
-	// lowPriority usd by info\debug\warn
+	// lowPriority used by info\debug\warn
 	lowPriority := zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
 		return lvl >= opt.level && lvl < zapcore.ErrorLevel
 	})
 
-	// highPriority usd by error\panic\fatal
+	// highPriority used by error\panic\fatal
 	highPriority := zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
 		return lvl >= opt.level && lvl >= zapcore.ErrorLevel
 	})
 
-	stdout := zapcore.Lock(os.Stdout) // lock for concurrent safe
-	stderr := zapcore.Lock(os.Stderr) // lock for concurrent safe
-
-	core := zapcore.NewTee()
+	var cores []zapcore.Core
 
 	if !opt.disableConsole {
-		core = zapcore.NewTee(
-			zapcore.NewCore(encoder,
-				zapcore.NewMultiWriteSyncer(stdout),
-				lowPriority,
-			),
-			zapcore.NewCore(encoder,
-				zapcore.NewMultiWriteSyncer(stderr),
-				highPriority,
-			),
+		stdout := zapcore.Lock(os.Stdout)
+		stderr := zapcore.Lock(os.Stderr)
+
+		cores = append(cores,
+			zapcore.NewCore(encoder, stdout, lowPriority),
+			zapcore.NewCore(encoder, stderr, highPriority),
 		)
 	}
 
 	if opt.file != nil {
-		core = zapcore.NewTee(core,
-			zapcore.NewCore(encoder,
-				zapcore.AddSync(opt.file),
+		cores = append(cores,
+			zapcore.NewCore(encoder, zapcore.AddSync(opt.file),
 				zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
 					return lvl >= opt.level
 				}),
@@ -289,14 +231,94 @@ func NewLogger(opts ...Option) (*zap.Logger, error) {
 		)
 	}
 
-	logger := zap.New(core,
-		zap.AddCaller(),
-		zap.ErrorOutput(stderr),
-	)
+	core := zapcore.NewTee(cores...)
+	logger := zap.New(core, zap.AddCaller(), zap.AddCallerSkip(1))
 
-	for key, value := range opt.fields {
-		logger = logger.WithOptions(zap.Fields(zapcore.Field{Key: key, Type: zapcore.StringType, String: value}))
+	if len(opt.fields) > 0 {
+		fields := make([]zap.Field, 0, len(opt.fields))
+		for k, v := range opt.fields {
+			fields = append(fields, zap.String(k, v))
+		}
+		logger = logger.With(fields...)
 	}
 
-	return logger, nil
+	return &Logger{log: logger}, nil
+}
+
+func (l *Logger) Logger() *zap.Logger {
+	return l.log
+}
+
+func (l *Logger) LogMode(level gorm.LogLevel) gorm.Interface {
+	return l
+}
+
+func (l *Logger) Debug(ctx context.Context, msg string, data ...interface{}) {
+	if fields := Fields(ctx); len(fields) > 0 {
+		l.log.With(fields...).Debug(fmt.Sprintf(msg, data...))
+	} else {
+		l.log.Debug(fmt.Sprintf(msg, data...))
+	}
+}
+
+func (l *Logger) Info(ctx context.Context, msg string, data ...interface{}) {
+	if fields := Fields(ctx); len(fields) > 0 {
+		l.log.With(fields...).Info(fmt.Sprintf(msg, data...))
+	} else {
+		l.log.Info(fmt.Sprintf(msg, data...))
+	}
+}
+
+func (l *Logger) Warn(ctx context.Context, msg string, data ...interface{}) {
+	if fields := Fields(ctx); len(fields) > 0 {
+		l.log.With(fields...).Warn(fmt.Sprintf(msg, data...))
+	} else {
+		l.log.Warn(fmt.Sprintf(msg, data...))
+	}
+}
+
+func (l *Logger) Error(ctx context.Context, msg string, data ...interface{}) {
+	if fields := Fields(ctx); len(fields) > 0 {
+		l.log.With(fields...).Error(fmt.Sprintf(msg, data...))
+	} else {
+		l.log.Error(fmt.Sprintf(msg, data...))
+	}
+}
+
+func (l *Logger) Trace(ctx context.Context, begin time.Time, fc func() (string, int64), err error) {
+	elapsed := time.Since(begin)
+	sql, rows := fc()
+
+	baseFields := Fields(ctx)
+	fields := make([]zap.Field, 0, len(baseFields)+5)
+	fields = append(fields, baseFields...)
+
+	switch {
+	case err != nil && !errors.Is(err, gorm.ErrRecordNotFound):
+		fields = append(fields,
+			zap.String("line", utils.FileWithLineNum()),
+			zap.Error(err),
+			zap.Duration("elapsed", elapsed),
+			zap.Int64("rows", rows),
+			zap.String("sql", sql),
+		)
+		l.log.Error("trace", fields...)
+	case elapsed > SlowThreshold:
+		fields = append(fields,
+			zap.String("line", utils.FileWithLineNum()),
+			zap.String("slow", fmt.Sprintf(">= %v", SlowThreshold)),
+			zap.Duration("elapsed", elapsed),
+			zap.Int64("rows", rows),
+			zap.String("sql", sql),
+		)
+		l.log.Warn("trace", fields...)
+	default:
+		fields = append(fields,
+			zap.String("line", utils.FileWithLineNum()),
+			zap.Duration("elapsed", elapsed),
+			zap.Int64("rows", rows),
+			zap.String("sql", sql),
+		)
+		l.log.Debug("trace", fields...)
+	}
 }

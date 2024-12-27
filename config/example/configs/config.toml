@@ -1,0 +1,4 @@
+debug = true
+
+[service]
+    listen = ":8080"

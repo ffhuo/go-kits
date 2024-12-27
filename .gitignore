@@ -24,7 +24,6 @@ vendor/
 # End of https://www.toptal.com/developers/gitignore/api/go
 
 ### Go Mod ###
-go.sum
 
 ### Progect ###
 *.pb.go

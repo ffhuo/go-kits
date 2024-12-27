@@ -13,13 +13,16 @@ import (
 	"github.com/go-playground/validator/v10"
 )
 
+// defaultValidator implements the StructValidator interface using go-playground/validator
 type defaultValidator struct {
 	once     sync.Once
 	validate *validator.Validate
 }
 
+// sliceValidateError represents validation errors for slice types
 type sliceValidateError []error
 
+// Error implements the error interface for sliceValidateError
 func (err sliceValidateError) Error() string {
 	var errMsgs []string
 	for i, e := range err {
@@ -31,9 +34,7 @@ func (err sliceValidateError) Error() string {
 	return strings.Join(errMsgs, "\n")
 }
 
-var _ StructValidator = &defaultValidator{}
-
-// ValidateStruct receives any kind of type, but only performed struct or pointer to struct type.
+// ValidateStruct implements the StructValidator interface
 func (v *defaultValidator) ValidateStruct(obj interface{}) error {
 	if obj == nil {
 		return nil
@@ -53,33 +54,32 @@ func (v *defaultValidator) ValidateStruct(obj interface{}) error {
 				validateRet = append(validateRet, err)
 			}
 		}
-		if len(validateRet) == 0 {
-			return nil
+		if len(validateRet) > 0 {
+			return validateRet
 		}
-		return validateRet
+		return nil
 	default:
 		return nil
 	}
 }
 
-// validateStruct receives struct type
+// validateStruct handles the actual validation of struct types
 func (v *defaultValidator) validateStruct(obj interface{}) error {
 	v.lazyinit()
 	return v.validate.Struct(obj)
 }
 
-// Engine returns the underlying validator engine which powers the default
-// Validator instance. This is useful if you want to register custom validations
-// or struct level validations. See validator GoDoc for more info -
-// https://godoc.org/gopkg.in/go-playground/validator.v8
+// Engine returns the underlying validator engine
 func (v *defaultValidator) Engine() interface{} {
 	v.lazyinit()
 	return v.validate
 }
 
+// lazyinit initializes the validator instance if not already done
 func (v *defaultValidator) lazyinit() {
 	v.once.Do(func() {
 		v.validate = validator.New()
-		v.validate.SetTagName("binding")
 	})
 }
+
+var _ StructValidator = &defaultValidator{}
