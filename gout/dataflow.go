@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ffhuo/go-kits/decode"
-	"github.com/ffhuo/go-kits/encode"
+	"github.com/ffhuo/go-kits/gout/decode"
+	"github.com/ffhuo/go-kits/gout/encode"
 )
 
 var defaultTimeout time.Duration = 10 * time.Second
