@@ -1,12 +1,11 @@
 module github.com/ffhuo/go-kits/config
 
-go 1.18
+go 1.21
 
 require (
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/spf13/viper v1.18.2
-	gopkg.in/fsnotify.v1 v1.4.7
 )
 
 require (

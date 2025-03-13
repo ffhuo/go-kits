@@ -5,7 +5,7 @@ import (
 	"errors"
 	"io"
 
-	"github.com/ffhuo/go-kits/utils"
+	"github.com/ffhuo/go-kits/common/conversion"
 )
 
 type JSONEncode struct {
@@ -21,7 +21,7 @@ func NewJSONEncoder(obj interface{}) Encoder {
 }
 
 func (j *JSONEncode) Encode(w io.Writer) error {
-	if v, ok := utils.GetBytes(j.obj); ok {
+	if v, ok := conversion.GetBytes(j.obj); ok {
 		if ok = json.Valid(v); ok {
 			return errors.New("Not json data")
 		}

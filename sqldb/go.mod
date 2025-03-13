@@ -2,11 +2,9 @@ module github.com/ffhuo/go-kits/sqldb
 
 go 1.21.0
 
-replace github.com/ffhuo/go-kits => ../
-
 require (
-	github.com/ffhuo/go-kits/logger v0.0.0
-	github.com/ffhuo/go-kits/paginator v0.0.0-00010101000000-000000000000
+	github.com/ffhuo/go-kits v0.0.2-0.20250313023643-2545f7434ffb
+	github.com/ffhuo/go-kits/logger v0.0.2-0.20250313023643-2545f7434ffb
 	github.com/prometheus/client_golang v1.20.5
 	gorm.io/driver/clickhouse v0.6.0
 	gorm.io/driver/mysql v1.5.2
@@ -70,9 +68,4 @@ require (
 	google.golang.org/protobuf v1.36.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-)
-
-replace (
-	github.com/ffhuo/go-kits/logger => ../logger
-	github.com/ffhuo/go-kits/paginator => ../paginator
 )
