@@ -3,8 +3,8 @@ module github.com/ffhuo/go-kits/sqldb
 go 1.21.0
 
 require (
-	github.com/ffhuo/go-kits v0.0.2-0.20250313023643-2545f7434ffb
-	github.com/ffhuo/go-kits/logger v0.0.2-0.20250313023643-2545f7434ffb
+	github.com/ffhuo/go-kits v0.0.2-0.20250313025923-a091d5cc6be3
+	github.com/ffhuo/go-kits/logger v0.0.0-20250313025923-a091d5cc6be3
 	github.com/prometheus/client_golang v1.20.5
 	gorm.io/driver/clickhouse v0.6.0
 	gorm.io/driver/mysql v1.5.2

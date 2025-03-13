@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ffhuo/go-kits/common/paginator"
 	"github.com/ffhuo/go-kits/logger"
-	"github.com/ffhuo/go-kits/paginator"
 	"gorm.io/driver/clickhouse"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/sqlite"

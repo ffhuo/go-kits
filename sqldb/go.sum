@@ -1023,8 +1023,10 @@ github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5Kwzbycv
 github.com/felixge/httpsnoop v1.0.1/go.mod h1:m8KPJKqk1gH5J9DgRY2ASl2lWCfGKXixSwevea8zH2U=
 github.com/felixge/httpsnoop v1.0.2/go.mod h1:m8KPJKqk1gH5J9DgRY2ASl2lWCfGKXixSwevea8zH2U=
 github.com/felixge/httpsnoop v1.0.3/go.mod h1:m8KPJKqk1gH5J9DgRY2ASl2lWCfGKXixSwevea8zH2U=
-github.com/ffhuo/go-kits v0.0.2-0.20250313023643-2545f7434ffb h1:RPhXyiTNxJOfOJ0NDuQ1U3Gan8vyb6avYmo9TbCYEnM=
-github.com/ffhuo/go-kits v0.0.2-0.20250313023643-2545f7434ffb/go.mod h1:Cv2N8n6xSoJhV9w3FNAd+HEsskEK/mZggIxLFOPiHI4=
+github.com/ffhuo/go-kits v0.0.2-0.20250313025923-a091d5cc6be3 h1:OdVrz67sWve+T/LqcJ1BwTevaQS6QQsSHq/028quTFU=
+github.com/ffhuo/go-kits v0.0.2-0.20250313025923-a091d5cc6be3/go.mod h1:yKkO5W1MiEhmaNUTMNAno1Lir56zLu1fQDL6T4ZaMKo=
+github.com/ffhuo/go-kits/logger v0.0.0-20250313025923-a091d5cc6be3 h1:+G6MTMAnOEacXGVvZhbaqlc0JO9vD2VbQqikg7Px0To=
+github.com/ffhuo/go-kits/logger v0.0.0-20250313025923-a091d5cc6be3/go.mod h1:olThTcXoSuHWBlttM3l0BD29VBkhBDDSJPpEnm8V0TU=
 github.com/fogleman/gg v1.2.1-0.20190220221249-0403632d5b90/go.mod h1:R/bRT+9gY/C5z7JzPU0zXsXHKM4/ayA+zqcVNZzPa1k=
 github.com/fogleman/gg v1.3.0/go.mod h1:R/bRT+9gY/C5z7JzPU0zXsXHKM4/ayA+zqcVNZzPa1k=
 github.com/form3tech-oss/jwt-go v3.2.2+incompatible/go.mod h1:pbq4aXjuKjdthFRnoDwaVPLA+WlJuPGy+QneDUgJi2k=
