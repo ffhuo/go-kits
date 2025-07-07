@@ -1,3 +1,33 @@
-go 1.23.6
+go 1.24.3
 
 use .
+
+use ./core
+
+use ./logger
+
+use ./config
+
+use ./redis
+
+use ./logger_v2
+
+use ./excel
+
+use ./message
+
+use ./storage
+
+use ./influxdb
+
+use ./etcd
+
+use ./prometheus
+
+use ./mqtt
+
+use ./gout
+
+use ./sqldb
+
+use ./ginmiddleware

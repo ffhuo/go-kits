@@ -136,7 +136,7 @@ func databaseStorageExample() {
 	fmt.Println("文件删除成功: database/moved_test.txt")
 }
 
-func main() {
+func runDatabaseExample() {
 	fmt.Println("=== 数据库存储示例 ===")
 	databaseStorageExample()
 }

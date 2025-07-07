@@ -11,7 +11,7 @@ import (
 	// "gorm.io/gorm"
 )
 
-func main() {
+func runMetadataExample() {
 	ctx := context.Background()
 
 	// 示例1: 本地存储 + 数据库元数据管理

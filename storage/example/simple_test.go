@@ -14,8 +14,8 @@ func simpleTest() {
 	// 测试纯本地存储（不使用数据库元数据）
 	config := &storage.LocalConfig{
 		BaseConfig: storage.BaseConfig{
-			DB:          nil, // 不提供数据库连接
-			TablePrefix: "",
+			DB:        nil, // 不提供数据库连接
+			TableName: "",
 		},
 		RootPath: "/tmp/storage_simple_test",
 		BaseURL:  "http://localhost:8080/files",

@@ -1,3 +1,3 @@
 module github.com/ffhuo/go-kits/etcd
 
-go 1.21
+go 1.24.3

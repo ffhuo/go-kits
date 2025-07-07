@@ -1,6 +1,10 @@
 module github.com/ffhuo/go-kits/sqldb
 
-go 1.21.0
+go 1.24.3
+
+replace github.com/ffhuo/go-kits => ../
+
+replace github.com/ffhuo/go-kits/logger => ../logger
 
 require (
 	github.com/ffhuo/go-kits v0.0.2-0.20250313025923-a091d5cc6be3
@@ -61,10 +65,10 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/arch v0.12.0 // indirect
-	golang.org/x/crypto v0.31.0 // indirect
-	golang.org/x/net v0.33.0 // indirect
-	golang.org/x/sys v0.28.0 // indirect
-	golang.org/x/text v0.21.0 // indirect
+	golang.org/x/crypto v0.36.0 // indirect
+	golang.org/x/net v0.37.0 // indirect
+	golang.org/x/sys v0.31.0 // indirect
+	golang.org/x/text v0.23.0 // indirect
 	google.golang.org/protobuf v1.36.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
