@@ -1,4 +1,4 @@
-module github.com/go-kits/logger_v2
+module github.com/ffhuo/go-kits/logger_v2
 
 go 1.24.3
 
