@@ -104,7 +104,7 @@ r.Use(ginmiddleware.CORS(&ginmiddleware.CORSConfig{
 
 ### 3. Logger 中间件
 
-详细的请求日志记录，兼容 logger 和 logger_v2。
+详细的请求日志记录，兼容 logger 和 logger_v2，支持可控制的参数显示和敏感数据脱敏。
 
 ```go
 // 基本使用
@@ -114,22 +114,37 @@ r.Use(ginmiddleware.LoggerMiddleware(&ginmiddleware.LoggerConfig{
 
 // 自定义配置
 r.Use(ginmiddleware.LoggerMiddleware(&ginmiddleware.LoggerConfig{
-    Logger:        yourLogger,
-    SkipPaths:     []string{"/health", "/metrics"},
-    SlowThreshold: 500 * time.Millisecond,
-    TimeFormat:    "2006-01-02 15:04:05",
-    UTCTime:       true,
+    Logger:           yourLogger,
+    SkipPaths:        []string{"/health", "/metrics"},
+    SlowThreshold:    500 * time.Millisecond,
+    ShowQueryParams:  true,  // 显示GET请求的query参数
+    ShowRequestBody:  true,  // 显示POST/PUT/PATCH请求的body内容
+    MaxBodySize:      1024,  // 最大body显示大小（字节）
+    SkipBodyMethods:  []string{"GET", "HEAD", "OPTIONS"}, // 跳过显示body的方法
+    SensitiveFields:  []string{"password", "token", "secret"}, // 敏感字段脱敏
 }))
+
+// 简化版日志中间件（只记录基本信息）
+r.Use(ginmiddleware.SimpleLoggerMiddleware(yourLogger))
 ```
 
 **记录信息：**
 - 请求ID
 - HTTP方法和路径
 - 状态码和响应时间
-- 客户端IP和User-Agent
-- 请求体大小
-- 查询参数
+- 客户端IP和User-Agent（截取前100字符）
+- GET请求的query参数（可控制）
+- POST/PUT/PATCH请求的body内容（可控制）
+- 敏感数据自动脱敏
 - 错误信息
+
+**特性：**
+- **智能参数显示**: GET请求显示query参数，POST请求显示body内容
+- **敏感数据脱敏**: 自动识别并脱敏敏感字段（如password、token等）
+- **大小限制**: 支持限制body显示大小，避免日志过大
+- **方法过滤**: 可配置跳过特定HTTP方法的body记录
+- **二进制检测**: 自动检测并标识二进制内容
+- **性能优化**: 移除了重复的时间记录（logger本身已有时间）
 
 ### 4. Recovery 中间件
 

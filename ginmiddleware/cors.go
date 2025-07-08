@@ -116,13 +116,3 @@ func CORS(config ...*CORSConfig) gin.HandlerFunc {
 		c.Next()
 	}
 }
-
-// contains 检查字符串切片是否包含指定字符串
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
-}

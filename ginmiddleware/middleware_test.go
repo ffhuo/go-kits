@@ -2,6 +2,7 @@ package ginmiddleware
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,19 +18,35 @@ type mockLogger struct {
 }
 
 func (m *mockLogger) Info(ctx context.Context, msg string, data ...interface{}) {
-	m.logs = append(m.logs, "INFO: "+msg)
+	logEntry := "INFO: " + msg
+	if len(data) > 0 {
+		logEntry += " " + fmt.Sprintf("%v", data[0])
+	}
+	m.logs = append(m.logs, logEntry)
 }
 
 func (m *mockLogger) Warn(ctx context.Context, msg string, data ...interface{}) {
-	m.logs = append(m.logs, "WARN: "+msg)
+	logEntry := "WARN: " + msg
+	if len(data) > 0 {
+		logEntry += " " + fmt.Sprintf("%v", data[0])
+	}
+	m.logs = append(m.logs, logEntry)
 }
 
 func (m *mockLogger) Error(ctx context.Context, msg string, data ...interface{}) {
-	m.logs = append(m.logs, "ERROR: "+msg)
+	logEntry := "ERROR: " + msg
+	if len(data) > 0 {
+		logEntry += " " + fmt.Sprintf("%v", data[0])
+	}
+	m.logs = append(m.logs, logEntry)
 }
 
 func (m *mockLogger) Debug(ctx context.Context, msg string, data ...interface{}) {
-	m.logs = append(m.logs, "DEBUG: "+msg)
+	logEntry := "DEBUG: " + msg
+	if len(data) > 0 {
+		logEntry += " " + fmt.Sprintf("%v", data[0])
+	}
+	m.logs = append(m.logs, logEntry)
 }
 
 func TestRequestID(t *testing.T) {
@@ -273,5 +290,261 @@ func TestSkipPaths(t *testing.T) {
 	// 检查是否跳过了日志记录
 	if len(logger.logs) > 0 {
 		t.Error("Logger should not have recorded requests to skip paths")
+	}
+}
+
+func TestLoggerWithQueryParams(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	logger := &mockLogger{}
+	r := gin.New()
+	r.Use(LoggerMiddleware(&LoggerConfig{
+		Logger:          logger,
+		ShowQueryParams: true,
+	}))
+
+	r.GET("/test", func(c *gin.Context) {
+		c.JSON(200, gin.H{"message": "ok"})
+	})
+
+	req, _ := http.NewRequest("GET", "/test?name=john&age=25", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	// 检查日志是否包含query参数
+	found := false
+	for _, log := range logger.logs {
+		if strings.Contains(log, "Query: name=john&age=25") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("Logger should have recorded query parameters")
+	}
+}
+
+func TestLoggerWithSensitiveQueryParams(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	logger := &mockLogger{}
+	r := gin.New()
+	r.Use(LoggerMiddleware(&LoggerConfig{
+		Logger:          logger,
+		ShowQueryParams: true,
+		SensitiveFields: []string{"password", "token"},
+	}))
+
+	r.GET("/test", func(c *gin.Context) {
+		c.JSON(200, gin.H{"message": "ok"})
+	})
+
+	req, _ := http.NewRequest("GET", "/test?username=john&password=secret123", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	// 检查日志是否脱敏了敏感参数
+	found := false
+	for _, log := range logger.logs {
+		if strings.Contains(log, "username=john") && strings.Contains(log, "password=***") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("Logger should have masked sensitive query parameters")
+	}
+}
+
+func TestLoggerWithRequestBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	logger := &mockLogger{}
+	r := gin.New()
+	r.Use(LoggerMiddleware(&LoggerConfig{
+		Logger:          logger,
+		ShowRequestBody: true,
+		MaxBodySize:     1024,
+	}))
+
+	r.POST("/test", func(c *gin.Context) {
+		c.JSON(200, gin.H{"message": "ok"})
+	})
+
+	body := `{"name":"john","email":"john@example.com"}`
+	req, _ := http.NewRequest("POST", "/test", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	// 检查日志是否包含请求体
+	found := false
+	for _, log := range logger.logs {
+		if strings.Contains(log, "Body: "+body) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("Logger should have recorded request body")
+	}
+}
+
+func TestLoggerWithSensitiveRequestBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	logger := &mockLogger{}
+	r := gin.New()
+	r.Use(LoggerMiddleware(&LoggerConfig{
+		Logger:          logger,
+		ShowRequestBody: true,
+		MaxBodySize:     1024,
+		SensitiveFields: []string{"password", "secret"},
+	}))
+
+	r.POST("/test", func(c *gin.Context) {
+		c.JSON(200, gin.H{"message": "ok"})
+	})
+
+	body := `{"username":"john","password":"secret123"}`
+	req, _ := http.NewRequest("POST", "/test", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	// 检查日志是否脱敏了敏感字段
+	found := false
+	for _, log := range logger.logs {
+		if strings.Contains(log, `"username":"john"`) && strings.Contains(log, `"password":"***"`) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("Logger should have masked sensitive fields in request body")
+	}
+}
+
+func TestLoggerSkipBodyMethods(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	logger := &mockLogger{}
+	r := gin.New()
+	r.Use(LoggerMiddleware(&LoggerConfig{
+		Logger:          logger,
+		ShowRequestBody: true,
+		SkipBodyMethods: []string{"GET", "HEAD"},
+	}))
+
+	r.GET("/test", func(c *gin.Context) {
+		c.JSON(200, gin.H{"message": "ok"})
+	})
+
+	req, _ := http.NewRequest("GET", "/test", strings.NewReader(`{"data":"test"}`))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	// 检查日志不应该包含请求体
+	for _, log := range logger.logs {
+		if strings.Contains(log, "Body:") {
+			t.Error("Logger should not record body for GET requests when configured to skip")
+		}
+	}
+}
+
+func TestLoggerLargeBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	logger := &mockLogger{}
+	r := gin.New()
+	r.Use(LoggerMiddleware(&LoggerConfig{
+		Logger:          logger,
+		ShowRequestBody: true,
+		MaxBodySize:     10, // 限制为10字节
+	}))
+
+	r.POST("/test", func(c *gin.Context) {
+		c.JSON(200, gin.H{"message": "ok"})
+	})
+
+	body := `{"name":"john","email":"john@example.com","description":"very long description"}`
+	req, _ := http.NewRequest("POST", "/test", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	// 检查日志是否截断了大的请求体
+	found := false
+	for _, log := range logger.logs {
+		if strings.Contains(log, "Body: ") && strings.Contains(log, "...") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("Logger should have truncated large request body")
+	}
+}
+
+func TestSimpleLoggerMiddleware(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	logger := &mockLogger{}
+	r := gin.New()
+	r.Use(SimpleLoggerMiddleware(logger))
+
+	r.GET("/test", func(c *gin.Context) {
+		c.JSON(200, gin.H{"message": "ok"})
+	})
+
+	req, _ := http.NewRequest("GET", "/test?param=value", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	// 检查简单日志是否记录了基本信息
+	found := false
+	for _, log := range logger.logs {
+		if strings.Contains(log, "HTTP Request") &&
+			strings.Contains(log, "Method: GET") &&
+			strings.Contains(log, "Path: /test") &&
+			strings.Contains(log, "Status: 200") {
+			found = true
+			// 简单日志不应该包含query参数
+			if strings.Contains(log, "param=value") {
+				t.Error("Simple logger should not include query parameters")
+			}
+			break
+		}
+	}
+	if !found {
+		t.Error("Simple logger should have recorded basic request information")
 	}
 }

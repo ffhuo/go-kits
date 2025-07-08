@@ -1,8 +1,11 @@
 package ginmiddleware
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -18,25 +21,38 @@ type Logger interface {
 
 // LoggerConfig 日志中间件配置
 type LoggerConfig struct {
-	Logger        Logger        // 日志实例
-	SkipPaths     []string      // 跳过记录的路径
-	TimeFormat    string        // 时间格式
-	UTCTime       bool          // 是否使用UTC时间
-	SlowThreshold time.Duration // 慢请求阈值
-	EnableColors  bool          // 是否启用颜色输出
-	CustomFields  []string      // 自定义字段
+	Logger          Logger        // 日志实例
+	SkipPaths       []string      // 跳过记录的路径
+	SlowThreshold   time.Duration // 慢请求阈值
+	ShowQueryParams bool          // 是否显示GET请求的query参数
+	ShowRequestBody bool          // 是否显示POST/PUT/PATCH请求的body内容
+	MaxBodySize     int           // 最大body显示大小（字节）
+	SkipBodyMethods []string      // 跳过显示body的HTTP方法
+	SensitiveFields []string      // 敏感字段，会被脱敏显示
 }
 
 // DefaultLoggerConfig 默认日志配置
 func DefaultLoggerConfig() *LoggerConfig {
 	return &LoggerConfig{
-		SkipPaths:     []string{"/health", "/metrics"},
-		TimeFormat:    "2006-01-02 15:04:05",
-		UTCTime:       false,
-		SlowThreshold: 200 * time.Millisecond,
-		EnableColors:  false,
-		CustomFields:  []string{},
+		SkipPaths:       []string{"/health", "/metrics"},
+		SlowThreshold:   200 * time.Millisecond,
+		ShowQueryParams: true,
+		ShowRequestBody: true,
+		MaxBodySize:     1024, // 1KB
+		SkipBodyMethods: []string{"GET", "HEAD", "OPTIONS"},
+		SensitiveFields: []string{"password", "token", "secret", "key"},
 	}
+}
+
+// bodyLogWriter 用于捕获响应内容的writer
+type bodyLogWriter struct {
+	gin.ResponseWriter
+	body *bytes.Buffer
+}
+
+func (w bodyLogWriter) Write(b []byte) (int, error) {
+	w.body.Write(b)
+	return w.ResponseWriter.Write(b)
 }
 
 // LoggerMiddleware 请求日志中间件
@@ -71,52 +87,62 @@ func LoggerMiddleware(config ...*LoggerConfig) gin.HandlerFunc {
 			requestID = "unknown"
 		}
 
+		// 获取请求参数
+		var requestParams string
+		method := c.Request.Method
+
+		// 处理GET请求的query参数
+		if method == "GET" && cfg.ShowQueryParams && c.Request.URL.RawQuery != "" {
+			requestParams = fmt.Sprintf("Query: %s", maskSensitiveData(c.Request.URL.RawQuery, cfg.SensitiveFields))
+		}
+
+		// 处理POST/PUT/PATCH请求的body内容
+		if cfg.ShowRequestBody && !containsIgnoreCase(cfg.SkipBodyMethods, method) {
+			if body := readRequestBody(c, cfg.MaxBodySize); body != "" {
+				requestParams = fmt.Sprintf("Body: %s", maskSensitiveData(body, cfg.SensitiveFields))
+			}
+		}
+
 		// 处理请求
 		c.Next()
 
 		// 计算响应时间
 		latency := time.Since(start)
 
-		// 获取时间戳
-		timestamp := start
-		if cfg.UTCTime {
-			timestamp = timestamp.UTC()
-		}
-
-		// 构建日志消息
+		// 构建日志信息
 		statusCode := c.Writer.Status()
-		method := c.Request.Method
 		clientIP := c.ClientIP()
 		userAgent := c.Request.UserAgent()
 
-		// 获取请求体大小
-		bodySize := c.Writer.Size()
-		if bodySize < 0 {
-			bodySize = 0
+		// 构建基础日志消息
+		logParts := []string{
+			fmt.Sprintf("RequestID: %s", requestID),
+			fmt.Sprintf("Method: %s", method),
+			fmt.Sprintf("Path: %s", path),
+			fmt.Sprintf("Status: %d", statusCode),
+			fmt.Sprintf("ClientIP: %s", clientIP),
+			fmt.Sprintf("Latency: %v", latency),
 		}
 
-		// 构建详细的日志信息
-		logMsg := fmt.Sprintf("[%s] %s %s - %d - %s - %s - %s - %dB - %s",
-			requestID,
-			method,
-			path,
-			statusCode,
-			clientIP,
-			userAgent,
-			latency,
-			bodySize,
-			timestamp.Format(cfg.TimeFormat),
-		)
+		// 添加请求参数信息
+		if requestParams != "" {
+			logParts = append(logParts, requestParams)
+		}
 
-		// 添加查询参数
-		if c.Request.URL.RawQuery != "" {
-			logMsg += fmt.Sprintf(" - Query: %s", c.Request.URL.RawQuery)
+		// 添加User-Agent（截取前100个字符）
+		if userAgent != "" {
+			if len(userAgent) > 100 {
+				userAgent = userAgent[:100] + "..."
+			}
+			logParts = append(logParts, fmt.Sprintf("UserAgent: %s", userAgent))
 		}
 
 		// 添加错误信息
 		if len(c.Errors) > 0 {
-			logMsg += fmt.Sprintf(" - Errors: %s", c.Errors.String())
+			logParts = append(logParts, fmt.Sprintf("Errors: %s", c.Errors.String()))
 		}
+
+		logMsg := strings.Join(logParts, " | ")
 
 		// 根据状态码和响应时间选择日志级别
 		ctx := context.Background()
@@ -134,36 +160,63 @@ func LoggerMiddleware(config ...*LoggerConfig) gin.HandlerFunc {
 	}
 }
 
-// RequestInfoMiddleware 请求信息记录中间件（更详细的版本）
-func RequestInfoMiddleware(logger Logger) gin.HandlerFunc {
+// readRequestBody 读取请求体内容
+func readRequestBody(c *gin.Context, maxSize int) string {
+	if c.Request.Body == nil {
+		return ""
+	}
+
+	// 读取body内容
+	bodyBytes, err := io.ReadAll(io.LimitReader(c.Request.Body, int64(maxSize)))
+	if err != nil {
+		return ""
+	}
+
+	// 恢复body，以便后续处理器可以读取
+	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+	// 如果内容为空，返回空字符串
+	if len(bodyBytes) == 0 {
+		return ""
+	}
+
+	// 检查是否是文本内容
+	body := string(bodyBytes)
+	if !isPrintableText(body) {
+		return fmt.Sprintf("[Binary data, %d bytes]", len(bodyBytes))
+	}
+
+	// 如果超过最大长度，截断并添加省略号
+	if len(bodyBytes) >= maxSize {
+		body += "..."
+	}
+
+	return body
+}
+
+// SimpleLoggerMiddleware 简化版日志中间件，只记录基本信息
+func SimpleLoggerMiddleware(logger Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 		requestID := GetRequestID(c)
 
-		// 记录请求开始
-		logger.Info(c.Request.Context(),
-			"Request started - ID: %s, Method: %s, Path: %s, IP: %s, UserAgent: %s",
-			requestID,
-			c.Request.Method,
-			c.Request.URL.Path,
-			c.ClientIP(),
-			c.Request.UserAgent(),
-		)
-
 		// 处理请求
 		c.Next()
 
-		// 记录请求结束
+		// 记录请求信息
 		latency := time.Since(start)
 		statusCode := c.Writer.Status()
-		bodySize := c.Writer.Size()
 
 		logger.Info(c.Request.Context(),
-			"Request completed - ID: %s, Status: %d, Duration: %v, Size: %d bytes",
-			requestID,
-			statusCode,
-			latency,
-			bodySize,
+			"HTTP Request",
+			fmt.Sprintf("RequestID: %s | Method: %s | Path: %s | Status: %d | Latency: %v | ClientIP: %s",
+				requestID,
+				c.Request.Method,
+				c.Request.URL.Path,
+				statusCode,
+				latency,
+				c.ClientIP(),
+			),
 		)
 	}
 }
