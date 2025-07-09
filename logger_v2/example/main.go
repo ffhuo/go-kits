@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/go-kits/logger_v2"
+	"github.com/ffhuo/go-kits/logger_v2"
 )
 
 func main() {
