@@ -5,9 +5,9 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strings"
 	"time"
 
+	"github.com/ffhuo/go-kits/common/field"
 	"github.com/gin-gonic/gin"
 )
 
@@ -87,46 +87,17 @@ func LoggerMiddleware(config ...*LoggerConfig) gin.HandlerFunc {
 			requestID = "unknown"
 		}
 
-		// 获取请求参数
-		var requestParams string
+		// 使用field方式添加请求字段到context
 		method := c.Request.Method
-
-		// 处理GET请求的query参数
-		if method == "GET" && cfg.ShowQueryParams && c.Request.URL.RawQuery != "" {
-			requestParams = fmt.Sprintf("Query: %s", maskSensitiveData(c.Request.URL.RawQuery, cfg.SensitiveFields))
-		}
-
-		// 处理POST/PUT/PATCH请求的body内容
-		if cfg.ShowRequestBody && !containsIgnoreCase(cfg.SkipBodyMethods, method) {
-			if body := readRequestBody(c, cfg.MaxBodySize); body != "" {
-				requestParams = fmt.Sprintf("Body: %s", maskSensitiveData(body, cfg.SensitiveFields))
-			}
-		}
-
-		// 处理请求
-		c.Next()
-
-		// 计算响应时间
-		latency := time.Since(start)
-
-		// 构建日志信息
-		statusCode := c.Writer.Status()
 		clientIP := c.ClientIP()
 		userAgent := c.Request.UserAgent()
 
-		// 构建基础日志消息
-		logParts := []string{
-			fmt.Sprintf("RequestID: %s", requestID),
-			fmt.Sprintf("Method: %s", method),
-			fmt.Sprintf("Path: %s", path),
-			fmt.Sprintf("Status: %d", statusCode),
-			fmt.Sprintf("ClientIP: %s", clientIP),
-			fmt.Sprintf("Latency: %v", latency),
-		}
-
-		// 添加请求参数信息
-		if requestParams != "" {
-			logParts = append(logParts, requestParams)
+		// 添加基础字段
+		fields := []field.Meta{
+			field.F("path", path),
+			field.F("method", method),
+			field.F("request_id", requestID),
+			field.F("client_ip", clientIP),
 		}
 
 		// 添加User-Agent（截取前100个字符）
@@ -134,28 +105,52 @@ func LoggerMiddleware(config ...*LoggerConfig) gin.HandlerFunc {
 			if len(userAgent) > 100 {
 				userAgent = userAgent[:100] + "..."
 			}
-			logParts = append(logParts, fmt.Sprintf("UserAgent: %s", userAgent))
+			fields = append(fields, field.F("user_agent", userAgent))
 		}
 
-		// 添加错误信息
-		if len(c.Errors) > 0 {
-			logParts = append(logParts, fmt.Sprintf("Errors: %s", c.Errors.String()))
+		// 处理GET请求的query参数
+		if method == "GET" && cfg.ShowQueryParams && c.Request.URL.RawQuery != "" {
+			queryParams := maskSensitiveData(c.Request.URL.RawQuery, cfg.SensitiveFields)
+			fields = append(fields, field.F("query", queryParams))
 		}
 
-		logMsg := strings.Join(logParts, " | ")
+		// 处理POST/PUT/PATCH请求的body内容
+		if cfg.ShowRequestBody && !containsIgnoreCase(cfg.SkipBodyMethods, method) {
+			if body := readRequestBody(c, cfg.MaxBodySize); body != "" {
+				maskedBody := maskSensitiveData(body, cfg.SensitiveFields)
+				fields = append(fields, field.F("body", maskedBody))
+			}
+		}
 
-		// 根据状态码和响应时间选择日志级别
-		ctx := context.Background()
+		// 将字段添加到gin context
+		field.With(c, fields...)
 
+		// 处理请求
+		c.Next()
+
+		// 计算响应时间
+		latency := time.Since(start)
+		statusCode := c.Writer.Status()
+
+		// 添加响应字段
+		responseFields := []field.Meta{
+			field.F("status", statusCode),
+			field.F("latency", fmt.Sprintf("%v", latency)),
+		}
+
+		// 将响应字段也添加到context
+		ctx := field.With(c, responseFields...)
+
+		// 根据状态码和响应时间选择日志级别和消息
 		switch {
 		case statusCode >= 500:
-			cfg.Logger.Error(ctx, "HTTP Request Error", logMsg)
+			cfg.Logger.Error(ctx, "HTTP Request Error: %s", c.Errors.String())
 		case statusCode >= 400:
-			cfg.Logger.Warn(ctx, "HTTP Request Warning", logMsg)
+			cfg.Logger.Warn(ctx, "HTTP Request Warning")
 		case latency > cfg.SlowThreshold:
-			cfg.Logger.Warn(ctx, "HTTP Request Slow", logMsg)
+			cfg.Logger.Warn(ctx, "HTTP Request Slow")
 		default:
-			cfg.Logger.Info(ctx, "HTTP Request", logMsg)
+			cfg.Logger.Info(ctx, "HTTP Request")
 		}
 	}
 }
@@ -200,23 +195,28 @@ func SimpleLoggerMiddleware(logger Logger) gin.HandlerFunc {
 		start := time.Now()
 		requestID := GetRequestID(c)
 
+		// 使用field方式添加基础字段
+		ctx := field.With(c,
+			field.F("path", c.Request.URL.Path),
+			field.F("method", c.Request.Method),
+			field.F("request_id", requestID),
+			field.F("client_ip", c.ClientIP()),
+		)
+
 		// 处理请求
 		c.Next()
 
-		// 记录请求信息
+		// 添加响应字段
 		latency := time.Since(start)
 		statusCode := c.Writer.Status()
 
-		logger.Info(c.Request.Context(),
-			"HTTP Request",
-			fmt.Sprintf("RequestID: %s | Method: %s | Path: %s | Status: %d | Latency: %v | ClientIP: %s",
-				requestID,
-				c.Request.Method,
-				c.Request.URL.Path,
-				statusCode,
-				latency,
-				c.ClientIP(),
-			),
+		ctx = field.With(ctx,
+			field.F("status", statusCode),
+			field.F("latency", latency),
+			field.F("latency_ms", latency.Milliseconds()),
 		)
+
+		// 记录请求信息
+		logger.Info(ctx, "HTTP Request")
 	}
 }

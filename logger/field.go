@@ -3,94 +3,34 @@ package logger
 import (
 	"context"
 
-	"github.com/gin-gonic/gin"
+	"github.com/ffhuo/go-kits/common/field"
 	"go.uber.org/zap"
 )
 
-var MetaKey = "loggerMeta"
-var _ Meta = (*meta)(nil)
+// 重新导出，保持兼容性
+type Meta = field.Meta
 
-// Meta key-value
-type Meta interface {
-	Key() string
-	Value() interface{}
-	meta()
-}
+var F = field.F
+var With = field.With
 
-type meta struct {
-	key   string
-	value interface{}
-}
+// 向后兼容的函数
+var WithFields = field.With
 
-func (m *meta) Key() string {
-	return m.key
-}
+func NewMeta(key string, value interface{}) Meta { return field.F(key, value) }
 
-func (m *meta) Value() interface{} {
-	return m.value
-}
+const MetaKey = "fields"
 
-func (m *meta) meta() {}
-
-// NewMeta create meat
-func NewMeta(key string, value interface{}) Meta {
-	return &meta{key: key, value: value}
-}
-
-// WrapMeta wrap meta to zap fields
-func WrapMeta(err error, metas ...Meta) (fields []zap.Field) {
-	capacity := len(metas) + 1 // namespace meta
-	if err != nil {
-		capacity++
+// Fields 从context获取字段并转换为zap.Field
+func Fields(ctx context.Context) []zap.Field {
+	metas := field.Get(ctx)
+	if len(metas) == 0 {
+		return nil
 	}
 
-	fields = make([]zap.Field, 0, capacity)
-	if err != nil {
-		fields = append(fields, zap.Error(err))
-	}
-
+	fields := make([]zap.Field, 0, len(metas)+1)
 	fields = append(fields, zap.Namespace("meta"))
 	for _, meta := range metas {
 		fields = append(fields, zap.Any(meta.Key(), meta.Value()))
 	}
-
-	return
-}
-
-func Fields(ctx context.Context) []zap.Field {
-	if ginCtx, ok := ctx.(*gin.Context); ok {
-		metas, ok := ginCtx.Get(MetaKey)
-		if !ok {
-			return nil
-		}
-		return WrapMeta(nil, metas.([]Meta)...)
-	}
-
-	metas, ok := ctx.Value(MetaKey).([]Meta)
-	if !ok {
-		return nil
-	}
-	return WrapMeta(nil, metas...)
-}
-
-func WithFields(ctx context.Context, fields ...Meta) context.Context {
-	if ginCtx, ok := ctx.(*gin.Context); ok {
-		metas, ok := ginCtx.Get(MetaKey)
-		if ok {
-			metas = append(metas.([]Meta), fields...)
-		} else {
-			metas = fields
-		}
-		ginCtx.Set(MetaKey, metas)
-		return ginCtx
-	}
-
-	metas, ok := ctx.Value(MetaKey).([]Meta)
-	if !ok {
-		ctx = context.WithValue(ctx, MetaKey, fields)
-	} else {
-		metas = append(metas, fields...)
-		ctx = context.WithValue(ctx, MetaKey, metas)
-	}
-	return ctx
+	return fields
 }

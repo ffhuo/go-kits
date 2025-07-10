@@ -3,104 +3,38 @@ package logger_v2
 import (
 	"context"
 	"log/slog"
+
+	"github.com/ffhuo/go-kits/common/field"
 )
 
-var MetaKey = "loggerMeta"
-var _ Meta = (*meta)(nil)
+// 重新导出，保持兼容性
+type Meta = field.Meta
 
-// Meta key-value interface
-type Meta interface {
-	Key() string
-	Value() interface{}
-	meta()
-}
+var F = field.F
+var With = field.With
 
-type meta struct {
-	key   string
-	value interface{}
-}
+// 向后兼容的函数
+var WithFields = field.With
 
-func (m *meta) Key() string {
-	return m.key
-}
+func NewMeta(key string, value interface{}) Meta { return field.F(key, value) }
 
-func (m *meta) Value() interface{} {
-	return m.value
-}
+const MetaKey = "fields"
 
-func (m *meta) meta() {}
-
-// NewMeta create meta
-func NewMeta(key string, value interface{}) Meta {
-	return &meta{key: key, value: value}
-}
-
-// WrapMeta wrap meta to slog attributes
-func WrapMeta(err error, metas ...Meta) []any {
-	capacity := len(metas) * 2 // each meta becomes key-value pair
-	if err != nil {
-		capacity += 2 // error key-value pair
+// Fields 从context获取字段并转换为slog格式
+func Fields(ctx context.Context) []any {
+	metas := field.Get(ctx)
+	if len(metas) == 0 {
+		return nil
 	}
 
-	fields := make([]any, 0, capacity)
-
-	if err != nil {
-		fields = append(fields, slog.Any("error", err))
-	}
-
-	// Add meta fields directly
+	fields := make([]any, 0, len(metas)*2)
 	for _, meta := range metas {
 		fields = append(fields, meta.Key(), meta.Value())
 	}
-
 	return fields
 }
 
-// Fields extracts fields from context and returns them as slog attributes
-func Fields(ctx context.Context) []any {
-	// Try to get gin context if available (optional dependency)
-	if ginCtx, ok := ctx.(interface {
-		Get(key string) (value interface{}, exists bool)
-	}); ok {
-		if metas, exists := ginCtx.Get(MetaKey); exists {
-			return WrapMeta(nil, metas.([]Meta)...)
-		}
-	}
-
-	metas, ok := ctx.Value(MetaKey).([]Meta)
-	if !ok {
-		return nil
-	}
-	return WrapMeta(nil, metas...)
-}
-
-// WithFields adds fields to context
-func WithFields(ctx context.Context, fields ...Meta) context.Context {
-	// Try to set gin context if available (optional dependency)
-	if ginCtx, ok := ctx.(interface {
-		Get(key string) (value interface{}, exists bool)
-		Set(key string, value interface{})
-	}); ok {
-		if metas, exists := ginCtx.Get(MetaKey); exists {
-			metas = append(metas.([]Meta), fields...)
-			ginCtx.Set(MetaKey, metas)
-		} else {
-			ginCtx.Set(MetaKey, fields)
-		}
-		return ctx
-	}
-
-	metas, ok := ctx.Value(MetaKey).([]Meta)
-	if !ok {
-		ctx = context.WithValue(ctx, MetaKey, fields)
-	} else {
-		metas = append(metas, fields...)
-		ctx = context.WithValue(ctx, MetaKey, metas)
-	}
-	return ctx
-}
-
-// SlogAttrs converts Meta slice to slog.Attr slice
+// SlogAttrs 将Meta切片转换为slog.Attr切片
 func SlogAttrs(metas []Meta) []slog.Attr {
 	attrs := make([]slog.Attr, 0, len(metas))
 	for _, meta := range metas {
@@ -109,7 +43,7 @@ func SlogAttrs(metas []Meta) []slog.Attr {
 	return attrs
 }
 
-// SlogAny converts Meta slice to []any for slog methods
+// SlogAny 将Meta切片转换为[]any用于slog方法
 func SlogAny(metas []Meta) []any {
 	fields := make([]any, 0, len(metas)*2)
 	for _, meta := range metas {
